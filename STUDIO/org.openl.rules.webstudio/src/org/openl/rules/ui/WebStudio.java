@@ -145,7 +145,6 @@ public class WebStudio implements DesignTimeRepositoryListener {
     private boolean testsFailuresOnly;
     private int testsFailuresPerTest;
     private boolean showComplexResult;
-    private ModuleMode defaultModuleMode = ModuleMode.MULTI;
 
     private String currentRepositoryId;
     private ProjectDescriptor currentProject;
@@ -212,15 +211,6 @@ public class WebStudio implements DesignTimeRepositoryListener {
         testsFailuresOnly = userSettingsManager.getBooleanProperty(userName, "test.failures.only");
         testsFailuresPerTest = userSettingsManager.getIntegerProperty(userName, "test.failures.pertest");
         showComplexResult = userSettingsManager.getBooleanProperty(userName, "test.result.complex.show");
-
-        String defaultModuleMode = userSettingsManager.getStringProperty(userName, "project.module.default.mode");
-        if (StringUtils.isNotEmpty(defaultModuleMode)) {
-            try {
-                this.defaultModuleMode = ModuleMode.valueOf(defaultModuleMode.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                log.warn(e.getMessage(), e);
-            }
-        }
     }
 
     public RulesTreeView[] getTreeViews() {
@@ -1098,20 +1088,6 @@ public class WebStudio implements DesignTimeRepositoryListener {
     public void setShowComplexResult(boolean showComplexResult) {
         this.showComplexResult = showComplexResult;
         userSettingsManager.setProperty(rulesUserSession.getUserName(), "test.result.complex.show", showComplexResult);
-    }
-
-    public boolean isSingleModuleModeByDefault() {
-        return defaultModuleMode == ModuleMode.SINGLE || defaultModuleMode == ModuleMode.SINGLE_ONLY;
-    }
-
-    public boolean isChangeableModuleMode() {
-        return defaultModuleMode == ModuleMode.MULTI || defaultModuleMode == ModuleMode.SINGLE;
-    }
-
-    public void setSingleModuleModeByDefault(boolean singleMode) {
-        this.defaultModuleMode = singleMode ? ModuleMode.SINGLE : ModuleMode.MULTI;
-        userSettingsManager
-            .setProperty(rulesUserSession.getUserName(), "project.module.default.mode", defaultModuleMode.name());
     }
 
     public void setNeedRestart(boolean needRestart) {
