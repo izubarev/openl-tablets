@@ -26,16 +26,12 @@ public class SimpleDependencyLoader implements IDependencyLoader {
     private final String dependencyName;
     private CompiledDependency compiledDependency;
     private final boolean executionMode;
-    private final boolean singleModuleMode;
     private final ProjectDescriptor project;
     private final Module module;
 
     protected Map<String, Object> configureParameters(IDependencyManager dependencyManager) {
-        Map<String, Object> params = dependencyManager.getExternalParameters();
-        if (!singleModuleMode) {
-            params = ProjectExternalDependenciesHelper.getExternalParamsWithProjectDependencies(params, getModules());
-        }
-        return params;
+        return ProjectExternalDependenciesHelper
+            .getExternalParamsWithProjectDependencies(dependencyManager.getExternalParameters(), getModules());
     }
 
     private Collection<Module> getModules() {
@@ -59,13 +55,11 @@ public class SimpleDependencyLoader implements IDependencyLoader {
 
     public SimpleDependencyLoader(ProjectDescriptor project,
             Module module,
-            boolean singleModuleMode,
             boolean executionMode,
             AbstractDependencyManager dependencyManager) {
         this.project = Objects.requireNonNull(project, "project cannot be null");
         this.module = module;
         this.executionMode = executionMode;
-        this.singleModuleMode = singleModuleMode;
         this.dependencyManager = Objects.requireNonNull(dependencyManager, "dependencyManager cannot be null");
         this.dependencyName = buildDependencyName(project, module);
     }

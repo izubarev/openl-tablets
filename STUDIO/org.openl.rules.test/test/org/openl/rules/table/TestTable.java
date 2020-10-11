@@ -15,7 +15,6 @@ public class TestTable {
         SimpleProjectEngineFactory<Object> simpleProjectEngineFactory = simpleProjectEngineFactoryBuilder
             .setExecutionMode(false)
             .setProject("test-resources/org/openl/rules/table")
-            .setModule("EPBDS-7145")
             .build();
         IOpenClass openClass = simpleProjectEngineFactory.getCompiledOpenClass().getOpenClassWithErrors();
 
@@ -23,7 +22,7 @@ public class TestTable {
         assertNotNull(tests);
         assertEquals(0, tests.length);
 
-        TestSuiteMethod hiTest = (TestSuiteMethod) openClass.getMethod("hiTest", new IOpenClass[0]);
+        TestSuiteMethod hiTest = (TestSuiteMethod) openClass.getMethod("hiTest", IOpenClass.EMPTY);
         assertNotNull(hiTest);
         assertTrue(hiTest.isRunmethodTestable());
     }

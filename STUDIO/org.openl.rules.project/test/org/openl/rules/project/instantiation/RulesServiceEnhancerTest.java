@@ -32,7 +32,7 @@ public class RulesServiceEnhancerTest {
         project.setModules(Collections.singletonList(module));
 
         IDependencyManager dependencyManager = new SimpleDependencyManager(Collections
-            .singletonList(project), null, true, false, null);
+            .singletonList(project), null, false, null);
 
         ApiBasedInstantiationStrategy strategy = new ApiBasedInstantiationStrategy(module, dependencyManager, false);
 
@@ -43,13 +43,13 @@ public class RulesServiceEnhancerTest {
 
         IRulesRuntimeContext context = RulesRuntimeContextFactory.buildRulesRuntimeContext();
         context.setCountry(CountriesEnum.US);
-        Method method = serviceClass.getMethod("hello1", new Class<?>[] { IRulesRuntimeContext.class, int.class });
-        Object result = method.invoke(instance, new Object[] { context, 10 });
+        Method method = serviceClass.getMethod("hello1", IRulesRuntimeContext.class, int.class);
+        Object result = method.invoke(instance, context, 10);
 
         assertEquals("Good Morning, World!", result);
 
         context.setCountry(CountriesEnum.RU);
-        result = method.invoke(instance, new Object[] { context, 22 });
+        result = method.invoke(instance, context, 22);
 
         assertEquals("(RU) Good Night, World!", result);
     }

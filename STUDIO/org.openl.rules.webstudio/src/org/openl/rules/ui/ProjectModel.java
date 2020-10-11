@@ -37,7 +37,6 @@ import org.openl.rules.project.instantiation.IDependencyLoader;
 import org.openl.rules.project.instantiation.ReloadType;
 import org.openl.rules.project.instantiation.RulesInstantiationException;
 import org.openl.rules.project.instantiation.RulesInstantiationStrategy;
-import org.openl.rules.project.instantiation.RulesInstantiationStrategyFactory;
 import org.openl.rules.project.instantiation.SimpleMultiModuleInstantiationStrategy;
 import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.PathEntry;
@@ -96,8 +95,6 @@ public class ProjectModel {
     private Module moduleInfo;
     private long moduleLastModified;
 
-    private boolean openedInSingleModuleMode;
-
     private final WebStudioWorkspaceDependencyManagerFactory webStudioWorkspaceDependencyManagerFactory;
     private WebStudioWorkspaceRelatedDependencyManager webStudioWorkspaceDependencyManager;
 
@@ -128,7 +125,6 @@ public class ProjectModel {
 
     public ProjectModel(WebStudio studio, TestSuiteExecutor testSuiteExecutor) {
         this.studio = studio;
-        this.openedInSingleModuleMode = studio.isSingleModuleModeByDefault();
         this.webStudioWorkspaceDependencyManagerFactory = new WebStudioWorkspaceDependencyManagerFactory(studio);
         this.testSuiteExecutor = testSuiteExecutor;
     }
@@ -523,23 +519,19 @@ public class ProjectModel {
     }
 
     private XlsModuleSyntaxNode findXlsModuleSyntaxNode(IDependencyManager dependencyManager) {
-        if (isSingleModuleMode()) {
-            XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
-            return xmi.getXlsModuleNode();
-        } else {
-            try {
-                Dependency dependency = new Dependency(DependencyType.MODULE,
-                    new IdentifierNode(null, null, moduleInfo.getName(), null));
+        try {
+            Dependency dependency = new Dependency(DependencyType.MODULE,
+                new IdentifierNode(null, null, moduleInfo.getName(), null));
 
-                XlsMetaInfo xmi = (XlsMetaInfo) dependencyManager.loadDependency(dependency)
-                    .getCompiledOpenClass()
-                    .getOpenClassWithErrors()
-                    .getMetaInfo();
-                return xmi == null ? null : xmi.getXlsModuleNode();
-            } catch (OpenLCompilationException e) {
-                throw new OpenlNotCheckedException(e);
-            }
+            XlsMetaInfo xmi = (XlsMetaInfo) dependencyManager.loadDependency(dependency)
+                .getCompiledOpenClass()
+                .getOpenClassWithErrors()
+                .getMetaInfo();
+            return xmi == null ? null : xmi.getXlsModuleNode();
+        } catch (OpenLCompilationException e) {
+            throw new OpenlNotCheckedException(e);
         }
+
     }
 
     /**
@@ -851,29 +843,11 @@ public class ProjectModel {
         workbookSyntaxNodes = null;
     }
 
-    private void resetWebStudioWorkspaceDependencyManagerForSingleMode(Module moduleInfo, Module previousModuleInfo) {
-        for (Module module : previousModuleInfo.getProject().getModules()) {
-            webStudioWorkspaceDependencyManager
-                .reset(new Dependency(DependencyType.MODULE, new IdentifierNode(null, null, module.getName(), null)));
-        }
-        for (Module module : moduleInfo.getProject().getModules()) {
-            webStudioWorkspaceDependencyManager
-                .reset(new Dependency(DependencyType.MODULE, new IdentifierNode(null, null, module.getName(), null)));
-        }
-    }
-
     public void setModuleInfo(Module moduleInfo) throws Exception {
         setModuleInfo(moduleInfo, ReloadType.NO);
     }
 
-    // TODO Remove "throws Exception"
-    public void setModuleInfo(Module moduleInfo, ReloadType reloadType) throws Exception {
-        setModuleInfo(moduleInfo, reloadType, shouldOpenInSingleMode(moduleInfo));
-    }
-
-    public synchronized void setModuleInfo(Module moduleInfo,
-            ReloadType reloadType,
-            boolean singleModuleMode) throws Exception {
+    public synchronized void setModuleInfo(Module moduleInfo, ReloadType reloadType) throws Exception {
         if (moduleInfo == null || this.moduleInfo == moduleInfo && reloadType == ReloadType.NO) {
             return;
         }
@@ -903,35 +877,24 @@ public class ProjectModel {
 
         isModified();
         clearModuleResources(); // prevent memory leak
-        if (openedInSingleModuleMode) {
-            OpenClassUtil.release(compiledOpenClass);
-        }
         compiledOpenClass = null;
         projectRoot = null;
         xlsModuleSyntaxNode = null;
         allXlsModuleSyntaxNodes.clear();
         workbookSyntaxNodes = null;
 
-        prepareWebstudioWorkspaceDependencyManager(singleModuleMode, previousModuleInfo);
-
-        Map<String, Object> externalParameters;
-        RulesInstantiationStrategy instantiationStrategy;
+        prepareWebstudioWorkspaceDependencyManager(previousModuleInfo);
 
         // Create instantiation strategy for opened module
-        if (singleModuleMode) {
-            instantiationStrategy = RulesInstantiationStrategyFactory
-                .getStrategy(this.moduleInfo, false, webStudioWorkspaceDependencyManager);
-            externalParameters = studio.getExternalProperties();
-        } else {
-            List<Module> modules = this.moduleInfo.getProject().getModules();
-            instantiationStrategy = new SimpleMultiModuleInstantiationStrategy(modules,
-                webStudioWorkspaceDependencyManager,
-                false);
 
-            externalParameters = ProjectExternalDependenciesHelper
-                .getExternalParamsWithProjectDependencies(studio.getExternalProperties(), modules);
+        List<Module> modules = this.moduleInfo.getProject().getModules();
+        RulesInstantiationStrategy instantiationStrategy = new SimpleMultiModuleInstantiationStrategy(modules,
+            webStudioWorkspaceDependencyManager,
+            false);
 
-        }
+        Map<String, Object> externalParameters = ProjectExternalDependenciesHelper
+            .getExternalParamsWithProjectDependencies(studio.getExternalProperties(), modules);
+
         instantiationStrategy.setExternalParameters(externalParameters);
 
         // If autoCompile is false we cannot unload workbook during editing because we must show to a user latest edited
@@ -945,9 +908,7 @@ public class ProjectModel {
             // Find all dependent XlsModuleSyntaxNode-s
             compiledOpenClass = instantiationStrategy.compile();
 
-            if (!singleModuleMode) {
-                compiledOpenClass = validate(instantiationStrategy);
-            }
+            compiledOpenClass = validate(instantiationStrategy);
 
             addAllSyntaxNodes(webStudioWorkspaceDependencyManager.getDependencyLoaders().values());
 
@@ -956,23 +917,21 @@ public class ProjectModel {
             fillMessageNodeIds();
 
             allXlsModuleSyntaxNodes.add(xlsModuleSyntaxNode);
-            if (!isSingleModuleMode()) {
-                List<WorkbookSyntaxNode> workbookSyntaxNodes = new ArrayList<>();
-                for (XlsModuleSyntaxNode xlsSyntaxNode : allXlsModuleSyntaxNodes) {
-                    if (!(xlsSyntaxNode.getModule() instanceof VirtualSourceCodeModule)) {
-                        workbookSyntaxNodes.addAll(Arrays.asList(xlsSyntaxNode.getWorkbookSyntaxNodes()));
-                    }
+
+            List<WorkbookSyntaxNode> workbookSyntaxNodes = new ArrayList<>();
+            for (XlsModuleSyntaxNode xlsSyntaxNode : allXlsModuleSyntaxNodes) {
+                if (!(xlsSyntaxNode.getModule() instanceof VirtualSourceCodeModule)) {
+                    workbookSyntaxNodes.addAll(Arrays.asList(xlsSyntaxNode.getWorkbookSyntaxNodes()));
                 }
-                this.workbookSyntaxNodes = workbookSyntaxNodes.toArray(new WorkbookSyntaxNode[0]);
-                // EPBDS-7629: In multimodule mode xlsModuleSyntaxNode does not contain Virtual Module with dispatcher
-                // table syntax nodes.
-                // Such dispatcher syntax nodes are needed to show dispatcher tables in Trace.
-                // That's why we should add virtual module to allXlsModuleSyntaxNodes.
-                XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
-                allXlsModuleSyntaxNodes.add(xmi.getXlsModuleNode());
-            } else {
-                workbookSyntaxNodes = xlsModuleSyntaxNode.getWorkbookSyntaxNodes();
             }
+            this.workbookSyntaxNodes = workbookSyntaxNodes.toArray(new WorkbookSyntaxNode[0]);
+            // EPBDS-7629: In multimodule mode xlsModuleSyntaxNode does not contain Virtual Module with dispatcher
+            // table syntax nodes.
+            // Such dispatcher syntax nodes are needed to show dispatcher tables in Trace.
+            // That's why we should add virtual module to allXlsModuleSyntaxNodes.
+            XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
+            allXlsModuleSyntaxNodes.add(xmi.getXlsModuleNode());
+
             WorkbookLoaders.resetCurrentFactory();
         } catch (Throwable t) {
             log.error("Failed to load.", t);
@@ -1041,35 +1000,22 @@ public class ProjectModel {
         }
     }
 
-    private void prepareWebstudioWorkspaceDependencyManager(boolean singleModuleMode, Module previousModuleInfo) {
+    private void prepareWebstudioWorkspaceDependencyManager(Module previousModuleInfo) {
         if (webStudioWorkspaceDependencyManager == null) {
             webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                .getDependencyManager(this.moduleInfo, singleModuleMode);
-            openedInSingleModuleMode = singleModuleMode;
+                .getDependencyManager(this.moduleInfo);
         } else {
-            if (openedInSingleModuleMode == singleModuleMode) {
-                boolean found = false;
-                for (ProjectDescriptor projectDescriptor : webStudioWorkspaceDependencyManager
-                    .getProjectDescriptors()) {
-                    if (this.moduleInfo.getProject().getName().equals(projectDescriptor.getName())) {
-                        found = true;
-                        break;
-                    }
+            boolean found = false;
+            for (ProjectDescriptor projectDescriptor : webStudioWorkspaceDependencyManager.getProjectDescriptors()) {
+                if (this.moduleInfo.getProject().getName().equals(projectDescriptor.getName())) {
+                    found = true;
+                    break;
                 }
-                if (!found) {
-                    webStudioWorkspaceDependencyManager.resetAll();
-                    webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                        .getDependencyManager(this.moduleInfo, singleModuleMode);
-                    openedInSingleModuleMode = singleModuleMode;
-                }
-                if (this.moduleInfo != previousModuleInfo && singleModuleMode) {
-                    resetWebStudioWorkspaceDependencyManagerForSingleMode(this.moduleInfo, previousModuleInfo);
-                }
-            } else {
+            }
+            if (!found) {
                 webStudioWorkspaceDependencyManager.resetAll();
                 webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                    .getDependencyManager(this.moduleInfo, singleModuleMode);
-                openedInSingleModuleMode = singleModuleMode;
+                    .getDependencyManager(this.moduleInfo);
             }
         }
     }
@@ -1183,25 +1129,6 @@ public class ProjectModel {
         return null;
     }
 
-    public boolean isSingleModuleMode() {
-        if (!isProjectCompiledSuccessfully()) {
-            return shouldOpenInSingleMode(moduleInfo);
-        }
-        return !isVirtualWorkbook();
-    }
-
-    public void useSingleModuleMode() throws Exception {
-        if (studio.isChangeableModuleMode()) {
-            setModuleInfo(moduleInfo, ReloadType.SINGLE, true);
-        }
-    }
-
-    public void useMultiModuleMode() throws Exception {
-        if (studio.isChangeableModuleMode()) {
-            setModuleInfo(moduleInfo, ReloadType.SINGLE, false);
-        }
-    }
-
     /**
      * Returns true if both are true: 1) Old project version is opened and 2) project is not modified yet.
      *
@@ -1249,23 +1176,6 @@ public class ProjectModel {
     private boolean isVirtualWorkbook() {
         XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
         return xmi.getXlsModuleNode().getModule() instanceof VirtualSourceCodeModule;
-    }
-
-    /**
-     * Determine if we should open in single module mode or multi module mode
-     *
-     * @param module opening module
-     * @return if true - single module mode, if false - multi module mode
-     */
-    private boolean shouldOpenInSingleMode(Module module) {
-        if (module != null && moduleInfo != null) {
-            ProjectDescriptor project = moduleInfo.getProject();
-            ProjectDescriptor newProject = module.getProject();
-            if (project.getName().equals(newProject.getName())) {
-                return openedInSingleModuleMode;
-            }
-        }
-        return studio.isSingleModuleModeByDefault();
     }
 
     public String getMessageNodeId(OpenLMessage message) {

@@ -204,8 +204,7 @@ public class ServiceInterfaceMethodInterceptingTest {
     public void testServiceClassUndecorating() throws Exception {
         RuleServiceOpenLServiceInstantiationFactoryImpl instantiationFactory = new RuleServiceOpenLServiceInstantiationFactoryImpl();
         instantiationFactory.setRuleServiceLoader(ruleServiceLoader);
-        IDependencyManager dependencyManager = new SimpleDependencyManager(Collections
-            .emptyList(), null, false, true, null);
+        IDependencyManager dependencyManager = new SimpleDependencyManager(Collections.emptyList(), null, true, null);
         RulesInstantiationStrategy rulesInstantiationStrategy = instantiationFactory.getInstantiationStrategyFactory()
             .getStrategy(serviceDescription, dependencyManager);
         Class<?> interfaceForInstantiationStrategy = RuleServiceInstantiationFactoryHelper

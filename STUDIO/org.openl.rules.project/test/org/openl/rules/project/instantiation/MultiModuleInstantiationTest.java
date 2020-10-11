@@ -30,7 +30,7 @@ public class MultiModuleInstantiationTest {
             modules.addAll(project.getModules());
         }
 
-        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, false, true, null);
+        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, true, null);
 
         SimpleMultiModuleInstantiationStrategy strategy = new SimpleMultiModuleInstantiationStrategy(modules,
             dependencyManager,
@@ -44,9 +44,8 @@ public class MultiModuleInstantiationTest {
 
         IRulesRuntimeContext context = RulesRuntimeContextFactory.buildRulesRuntimeContext();
         context.setLob("lob3");
-        Method method = serviceClass.getMethod("driverRiskPremium",
-            new Class<?>[] { IRulesRuntimeContext.class, String.class });
-        Object result = method.invoke(instance, new Object[] { context, "High Risk Driver" });
+        Method method = serviceClass.getMethod("driverRiskPremium", IRulesRuntimeContext.class, String.class);
+        Object result = method.invoke(instance, context, "High Risk Driver");
 
         assertEquals(new DoubleValue(400), result);
     }
@@ -59,9 +58,7 @@ public class MultiModuleInstantiationTest {
     private List<Module> listModules(List<ProjectDescriptor> projects) {
         List<Module> modules = new ArrayList<>();
         for (ProjectDescriptor project : projects) {
-            for (Module module : project.getModules()) {
-                modules.add(module);
-            }
+            modules.addAll(project.getModules());
         }
         return modules;
     }
@@ -71,7 +68,7 @@ public class MultiModuleInstantiationTest {
 
         File root = new File("test-resources/multi-module-support/test2");
         List<ProjectDescriptor> projects = listProjectsInFolder(root);
-        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, false, true, null);
+        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, true, null);
 
         SimpleMultiModuleInstantiationStrategy strategy = new SimpleMultiModuleInstantiationStrategy(
             listModules(projects),
@@ -81,20 +78,20 @@ public class MultiModuleInstantiationTest {
         Class<?> serviceClass = strategy.getInstanceClass();
         Object instance = strategy.instantiate();
 
-        Method method = serviceClass.getMethod("worldHello", new Class<?>[] { int.class });
-        Object result = method.invoke(instance, new Object[] { 10 });
+        Method method = serviceClass.getMethod("worldHello", int.class);
+        Object result = method.invoke(instance, 10);
         assertEquals("World, Good Morning!", result);
 
-        method = serviceClass.getMethod("helloWorld", new Class<?>[] { int.class });
-        result = method.invoke(instance, new Object[] { 10 });
+        method = serviceClass.getMethod("helloWorld", int.class);
+        result = method.invoke(instance, 10);
         assertEquals("Good Morning, World!", result);
 
-        method = serviceClass.getMethod("getData1", new Class<?>[] {});
-        result = method.invoke(instance, new Object[] {});
+        method = serviceClass.getMethod("getData1");
+        result = method.invoke(instance);
         assertEquals(2, ((Object[]) result).length);
 
-        method = serviceClass.getMethod("getData2", new Class<?>[] {});
-        result = method.invoke(instance, new Object[] {});
+        method = serviceClass.getMethod("getData2");
+        result = method.invoke(instance);
         assertEquals(3, ((Object[]) result).length);
     }
 
@@ -108,7 +105,7 @@ public class MultiModuleInstantiationTest {
     public void testServiceClass() throws Exception {
         File root = new File("test-resources/multi-module-support/test2");
         List<ProjectDescriptor> projects = listProjectsInFolder(root);
-        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, false, true, null);
+        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, true, null);
         SimpleMultiModuleInstantiationStrategy strategy = new SimpleMultiModuleInstantiationStrategy(
             listModules(projects),
             dependencyManager,
@@ -130,7 +127,7 @@ public class MultiModuleInstantiationTest {
         for (ProjectDescriptor project : projects) {
             modules.addAll(project.getModules());
         }
-        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, false, true, null);
+        IDependencyManager dependencyManager = new SimpleDependencyManager(projects, null, true, null);
 
         SimpleMultiModuleInstantiationStrategy strategy = new SimpleMultiModuleInstantiationStrategy(modules,
             dependencyManager,
@@ -145,44 +142,44 @@ public class MultiModuleInstantiationTest {
         IRulesRuntimeContext context = RulesRuntimeContextFactory.buildRulesRuntimeContext();
         context.setLob("lob2");
 
-        Method method = serviceClass.getMethod("hello", new Class<?>[] { IRulesRuntimeContext.class, int.class });
-        Object result = method.invoke(instance, new Object[] { context, 10 });
+        Method method = serviceClass.getMethod("hello", IRulesRuntimeContext.class, int.class);
+        Object result = method.invoke(instance, context, 10);
         assertEquals("Good Morning, World!", result);
 
-        method = serviceClass.getMethod("getData1", new Class<?>[] { IRulesRuntimeContext.class });
-        result = method.invoke(instance, new Object[] { context });
+        method = serviceClass.getMethod("getData1", IRulesRuntimeContext.class);
+        result = method.invoke(instance, context);
         assertEquals(2, ((Object[]) result).length);
 
-        method = serviceClass.getMethod("getData2", new Class<?>[] { IRulesRuntimeContext.class });
-        result = method.invoke(instance, new Object[] { context });
+        method = serviceClass.getMethod("getData2", IRulesRuntimeContext.class);
+        result = method.invoke(instance, context);
         assertEquals(3, ((Object[]) result).length);
 
         context.setLob("lob3");
 
-        method = serviceClass.getMethod("hello", new Class<?>[] { IRulesRuntimeContext.class, int.class });
-        result = method.invoke(instance, new Object[] { context, 10 });
+        method = serviceClass.getMethod("hello", IRulesRuntimeContext.class, int.class);
+        result = method.invoke(instance, context, 10);
         assertEquals("World, Good Morning!", result);
 
-        method = serviceClass.getMethod("getData1", new Class<?>[] { IRulesRuntimeContext.class });
-        result = method.invoke(instance, new Object[] { context });
+        method = serviceClass.getMethod("getData1", IRulesRuntimeContext.class);
+        result = method.invoke(instance, context);
         assertEquals(2, ((Object[]) result).length);
 
-        method = serviceClass.getMethod("getData2", new Class<?>[] { IRulesRuntimeContext.class });
-        result = method.invoke(instance, new Object[] { context });
+        method = serviceClass.getMethod("getData2", IRulesRuntimeContext.class);
+        result = method.invoke(instance, context);
         assertEquals(3, ((Object[]) result).length);
 
         context.setLob("lob1");
 
-        method = serviceClass.getMethod("hello", new Class<?>[] { IRulesRuntimeContext.class, int.class });
-        result = method.invoke(instance, new Object[] { context, 10 });
+        method = serviceClass.getMethod("hello", IRulesRuntimeContext.class, int.class);
+        result = method.invoke(instance, context, 10);
         assertEquals("Good Morning", result);
 
-        method = serviceClass.getMethod("getData1", new Class<?>[] { IRulesRuntimeContext.class });
-        result = method.invoke(instance, new Object[] { context });
+        method = serviceClass.getMethod("getData1", IRulesRuntimeContext.class);
+        result = method.invoke(instance, context);
         assertEquals(2, ((Object[]) result).length);
 
-        method = serviceClass.getMethod("getData2", new Class<?>[] { IRulesRuntimeContext.class });
-        result = method.invoke(instance, new Object[] { context });
+        method = serviceClass.getMethod("getData2", IRulesRuntimeContext.class);
+        result = method.invoke(instance, context);
         assertEquals(3, ((Object[]) result).length);
     }
 
