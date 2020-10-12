@@ -852,8 +852,6 @@ public class ProjectModel {
             return;
         }
 
-        Module previousModuleInfo = this.moduleInfo;
-
         if (reloadType != ReloadType.NO) {
             uriTableCache.clear();
             idTableCache.clear();
@@ -883,7 +881,7 @@ public class ProjectModel {
         allXlsModuleSyntaxNodes.clear();
         workbookSyntaxNodes = null;
 
-        prepareWebstudioWorkspaceDependencyManager(previousModuleInfo);
+        prepareWorkspaceDependencyManager();
 
         // Create instantiation strategy for opened module
 
@@ -964,30 +962,18 @@ public class ProjectModel {
 
     private void addAllSyntaxNodes(
             Collection<Collection<IDependencyLoader>> collectionsDependencyLoaders) throws OpenLCompilationException {
-        boolean projectDependencyLoaderFound = false;
         for (Collection<IDependencyLoader> collectionDependencyLoaders : collectionsDependencyLoaders) {
             for (IDependencyLoader dl : collectionDependencyLoaders) {
-                XlsMetaInfo metaInfo = null;
-                if (!projectDependencyLoaderFound && Objects.equals(dl.getProject().getName(),
-                    moduleInfo.getProject().getName())) {
-                    projectDependencyLoaderFound = true;
-                    metaInfo = (XlsMetaInfo) dl.getCompiledDependency()
-                        .getCompiledOpenClass()
-                        .getOpenClassWithErrors()
-                        .getMetaInfo();
-                } else if (!dl.isProject() && dl.isCompiled()) {
-                    metaInfo = (XlsMetaInfo) dl.getCompiledDependency()
-                        .getCompiledOpenClass()
-                        .getOpenClassWithErrors()
-                        .getMetaInfo();
-                }
-                if (metaInfo != null) {
-                    allXlsModuleSyntaxNodes.add(metaInfo.getXlsModuleNode());
+                if (!dl.isProject() && dl.isCompiled()) {
+                    XlsMetaInfo metaInfo = (XlsMetaInfo) dl.getCompiledDependency()
+                            .getCompiledOpenClass()
+                            .getOpenClassWithErrors()
+                            .getMetaInfo();
+                    if (metaInfo != null) {
+                        allXlsModuleSyntaxNodes.add(metaInfo.getXlsModuleNode());
+                    }
                 }
             }
-        }
-        if (!projectDependencyLoaderFound) {
-            throw new IllegalStateException(String.format("Module '%s' is not found!", moduleInfo.getName()));
         }
     }
 
@@ -1000,7 +986,7 @@ public class ProjectModel {
         }
     }
 
-    private void prepareWebstudioWorkspaceDependencyManager(Module previousModuleInfo) {
+    private void prepareWorkspaceDependencyManager() {
         if (webStudioWorkspaceDependencyManager == null) {
             webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
                 .getDependencyManager(this.moduleInfo);
@@ -1171,11 +1157,6 @@ public class ProjectModel {
     public IOpenMethod getCurrentDispatcherMethod(IOpenMethod method, String uri) {
         TableSyntaxNode tsn = getNode(uri);
         return getMethodFromDispatcher((OpenMethodDispatcher) method, tsn);
-    }
-
-    private boolean isVirtualWorkbook() {
-        XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
-        return xmi.getXlsModuleNode().getModule() instanceof VirtualSourceCodeModule;
     }
 
     public String getMessageNodeId(OpenLMessage message) {
