@@ -36,7 +36,6 @@ import org.openl.rules.convertor.ObjectToDataOpenCastConvertor;
 import org.openl.rules.data.IDataBase;
 import org.openl.rules.data.ITable;
 import org.openl.rules.lang.xls.XlsNodeTypes;
-import org.openl.rules.lang.xls.binding.wrapper.IRulesMethodWrapper;
 import org.openl.rules.lang.xls.binding.wrapper.WrapperLogic;
 import org.openl.rules.lang.xls.syntax.XlsModuleSyntaxNode;
 import org.openl.rules.table.OpenLArgumentsCloner;
@@ -45,17 +44,16 @@ import org.openl.rules.table.properties.PropertiesHelper;
 import org.openl.rules.table.properties.def.TablePropertyDefinition;
 import org.openl.rules.table.properties.def.TablePropertyDefinitionUtils;
 import org.openl.rules.testmethod.TestSuiteMethod;
+import org.openl.rules.types.DuplicateMemberThrowExceptionHelper;
 import org.openl.rules.types.OpenMethodDispatcher;
-import org.openl.rules.types.UriMemberHelper;
 import org.openl.rules.types.impl.MatchingOpenMethodDispatcher;
 import org.openl.rules.types.impl.OverloadedMethodsDispatcherTable;
-import org.openl.source.IOpenSourceCodeModule;
 import org.openl.syntax.code.IParsedCode;
-import org.openl.types.IModuleInfo;
 import org.openl.types.IOpenClass;
 import org.openl.types.IOpenField;
 import org.openl.types.IOpenMethod;
 import org.openl.types.impl.AMethod;
+import org.openl.types.impl.DomainOpenClass;
 import org.openl.util.StringUtils;
 
 import com.rits.cloning.Cloner;
@@ -92,25 +90,43 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
 
     private final ObjectToDataOpenCastConvertor objectToDataOpenCastConvertor = new ObjectToDataOpenCastConvertor();
 
+    // This field is used to refer to correct module name that is used in the system, the name of XlsModuleOpenClass can
+    // be different if the module name is not matched to the java naming restrictions.
+    private final String moduleName;
+
     public RulesModuleBindingContext getRulesModuleBindingContext() {
         return rulesModuleBindingContext;
+    }
+
+    private static String makeJavaIdentifier(String src) {
+        StringBuilder buf = new StringBuilder();
+        for (int i = 0; i < src.length(); i++) {
+            char c = src.charAt(i);
+            if (i == 0) {
+                buf.append(Character.isJavaIdentifierStart(c) ? c : '_');
+            } else {
+                buf.append(Character.isJavaIdentifierPart(c) ? c : '_');
+            }
+        }
+
+        return buf.toString();
     }
 
     /**
      * Constructor for module with dependent modules
      *
      */
-    public XlsModuleOpenClass(String name,
-            XlsMetaInfo metaInfo,
+    public XlsModuleOpenClass(String moduleName,
+            XlsMetaInfo xlsMetaInfo,
             OpenL openl,
             IDataBase dbase,
             Set<CompiledDependency> usingModules,
             ClassLoader classLoader,
             IBindingContext bindingContext) {
-        super(name, openl);
-
+        super(makeJavaIdentifier(moduleName), openl);
+        this.moduleName = moduleName;
         this.dataBase = dbase;
-        this.metaInfo = metaInfo;
+        this.xlsMetaInfo = xlsMetaInfo;
         this.useDecisionTableDispatcher = OpenLSystemProperties.isDTDispatchingMode(bindingContext.getExternalParams());
         this.dispatchingValidationEnabled = OpenLSystemProperties
             .isDispatchingValidationEnabled(bindingContext.getExternalParams());
@@ -128,7 +144,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
             setDependencies(usingModules);
             initDependencies();
         }
-        initImports(metaInfo.getXlsModuleNode());
+        initImports(xlsMetaInfo.getXlsModuleNode());
     }
 
     public ITableProperties getGlobalTableProperties() {
@@ -300,19 +316,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
     }
 
     public XlsMetaInfo getXlsMetaInfo() {
-        return (XlsMetaInfo) metaInfo;
-    }
-
-    protected IOpenMethod unwrapOpenMethod(IOpenMethod method) {
-        if (method instanceof IRulesMethodWrapper) {
-            IRulesMethodWrapper wrapper = (IRulesMethodWrapper) method;
-            return wrapper.getDelegate();
-        }
-        return method;
-    }
-
-    protected IOpenMethod wrapOpenMethod(IOpenMethod method) {
-        return WrapperLogic.wrapOpenMethod(method, this);
+        return (XlsMetaInfo) xlsMetaInfo;
     }
 
     @Override
@@ -327,10 +331,8 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
                         .equals(existedField.getType())) {
                     return;
                 }
-
-                throw new DuplicatedFieldException("", openField.getName());
             }
-            UriMemberHelper.validateFieldDuplication(openField, existedField);
+            throw new DuplicatedFieldException("", openField.getName());
         }
         fieldMap().put(openField.getName(), openField);
         addFieldToLowerCaseMap(openField);
@@ -358,58 +360,43 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
             }
             return;
         }
-        IOpenMethod m = wrapOpenMethod(method);
+        IOpenMethod m = WrapperLogic.wrapOpenMethod(method, this);
 
         // Workaround needed to set the module name in the method while compile
         if (m instanceof AMethod && ((AMethod) m).getModuleName() == null) {
-            XlsMetaInfo metaInfo = getXlsMetaInfo();
-            if (metaInfo != null) {
-                IOpenSourceCodeModule sourceCodeModule = metaInfo.getXlsModuleNode().getModule();
-                if (sourceCodeModule instanceof IModuleInfo) {
-                    ((AMethod) m).setModuleName(((IModuleInfo) sourceCodeModule).getModuleName());
-                }
-            }
+            ((AMethod) m).setModuleName(moduleName);
         }
 
         // Checks that method already exists in the class. If it already
         // exists then "overload" it using decorator; otherwise - just add to
         // the class.
         //
-        IOpenMethod existingMethod = getDeclaredMethod(m.getName(), m.getSignature().getParameterTypes());
+        IOpenMethod existedMethod = getDeclaredMethod(m.getName(), m.getSignature().getParameterTypes());
 
-        if (existingMethod != null) {
+        if (existedMethod != null) {
+            if (method instanceof TestSuiteMethod) {
+                DuplicateMemberThrowExceptionHelper.throwDuplicateMethodExceptionIfMethodsAreNotTheSame(method,
+                    existedMethod);
+                return;
+            }
 
-            if (!existingMethod.getType().equals(m.getType())) {
+            if (!existedMethod.getType().equals(m.getType())) {
                 String message = String.format("Method '%s' is already defined with another return type '%s'.",
                     MethodUtil.printSignature(m, INamedThing.REGULAR),
-                    existingMethod.getType().getDisplayName(0));
-                throw new DuplicatedMethodException(message, existingMethod, method);
+                    existedMethod.getType().getDisplayName(0));
+                throw new DuplicatedMethodException(message, existedMethod, method);
             }
 
-            for (int i = 0; i < existingMethod.getSignature().getNumberOfParameters(); i++) {
-                if (!Objects.equals(existingMethod.getSignature().getParameterType(i),
-                    m.getSignature().getParameterType(i))) {
+            for (int i = 0; i < existedMethod.getSignature().getNumberOfParameters(); i++) {
+                IOpenClass existedParameterType = existedMethod.getSignature().getParameterType(i);
+                IOpenClass mParameterType = m.getSignature().getParameterType(i);
+                if ((existedParameterType instanceof DomainOpenClass || mParameterType instanceof DomainOpenClass) && !Objects
+                    .equals(existedParameterType, mParameterType)) {
                     String message = String.format("Method '%s' conflicts with another method '%s'.",
-                        MethodUtil.printSignature(existingMethod, INamedThing.REGULAR),
+                        MethodUtil.printSignature(existedMethod, INamedThing.REGULAR),
                         MethodUtil.printSignature(m, INamedThing.REGULAR));
                     throw new ConflictsMethodException(message);
                 }
-            }
-
-            for (int i = 0; i < existingMethod.getSignature().getNumberOfParameters(); i++) {
-                if (!Objects.equals(existingMethod.getSignature().getParameterName(i),
-                    m.getSignature().getParameterName(i))) {
-                    String message = String.format(
-                        "Method '%s' conflicts with another method '%s', because parameter names are different.",
-                        MethodUtil.printSignature(existingMethod, INamedThing.REGULAR),
-                        MethodUtil.printSignature(m, INamedThing.REGULAR));
-                    throw new ConflictsMethodException(message);
-                }
-            }
-
-            if (!m.equals(existingMethod) && method instanceof TestSuiteMethod) {
-                UriMemberHelper.validateMethodDuplication(method, existingMethod);
-                return;
             }
 
             // Checks the instance of existed method. If it's the
@@ -417,32 +404,32 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
             // decorator; otherwise - replace existed method with new instance
             // of OpenMethodDecorator for existed method and add new one.
             //
-            if (existingMethod instanceof OpenMethodDispatcher) {
-                OpenMethodDispatcher decorator = (OpenMethodDispatcher) existingMethod;
-                decorator.addMethod(unwrapOpenMethod(m));
+            if (existedMethod instanceof OpenMethodDispatcher) {
+                OpenMethodDispatcher decorator = (OpenMethodDispatcher) existedMethod;
+                decorator.addMethod(WrapperLogic.unwrapOpenMethod(m));
             } else {
-                if (!m.equals(existingMethod)) {
+                if (!m.equals(existedMethod)) {
                     // Create decorator for existed method.
                     //
-                    OpenMethodDispatcher dispatcher = getOpenMethodDispatcher(existingMethod);
+                    OpenMethodDispatcher dispatcher = getOpenMethodDispatcher(existedMethod);
 
-                    IOpenMethod openMethod = wrapOpenMethod(dispatcher);
+                    IOpenMethod openMethod = WrapperLogic.wrapOpenMethod(dispatcher, this);
 
                     overrideMethod(openMethod);
 
-                    dispatcher.addMethod(unwrapOpenMethod(m));
+                    dispatcher.addMethod(WrapperLogic.unwrapOpenMethod(m));
                 }
             }
         } else {
             // Just wrap original method with dispatcher functionality.
             //
 
-            if (dispatchingValidationEnabled && !(m instanceof TestSuiteMethod) && dimensionalPropertyPresented(m)) {
+            if (dispatchingValidationEnabled && !(m instanceof TestSuiteMethod) && isDimensionalPropertyPresented(m)) {
                 // Create dispatcher for existed method.
                 //
                 OpenMethodDispatcher dispatcher = getOpenMethodDispatcher(m);
 
-                IOpenMethod openMethod = wrapOpenMethod(dispatcher);
+                IOpenMethod openMethod = WrapperLogic.wrapOpenMethod(dispatcher, this);
 
                 super.addMethod(openMethod);
 
@@ -452,7 +439,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
         }
     }
 
-    private boolean dimensionalPropertyPresented(IOpenMethod m) {
+    private boolean isDimensionalPropertyPresented(IOpenMethod m) {
         List<TablePropertyDefinition> dimensionalPropertiesDef = TablePropertyDefinitionUtils
             .getDimensionalTableProperties();
         ITableProperties propertiesFromMethod = PropertiesHelper.getTableProperties(m);
@@ -467,7 +454,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
 
     private OpenMethodDispatcher getOpenMethodDispatcher(IOpenMethod method) {
         OpenMethodDispatcher decorator;
-        IOpenMethod decorated = unwrapOpenMethod(method);
+        IOpenMethod decorated = WrapperLogic.unwrapOpenMethod(method);
         if (useDecisionTableDispatcher) {
             decorator = new OverloadedMethodsDispatcherTable(decorated, this);
         } else {

@@ -23,8 +23,10 @@ import org.openl.rules.project.abstraction.RulesProject;
 import org.openl.rules.project.abstraction.UserWorkspaceProject;
 import org.openl.rules.project.resolving.ProjectDescriptorArtefactResolver;
 import org.openl.rules.repository.api.BranchRepository;
+import org.openl.rules.repository.api.Repository;
 import org.openl.rules.webstudio.filter.AllFilter;
 import org.openl.rules.webstudio.filter.IFilter;
+import org.openl.rules.webstudio.filter.RepositoryFileExtensionFilter;
 import org.openl.rules.webstudio.web.repository.tree.TreeDProject;
 import org.openl.rules.webstudio.web.repository.tree.TreeFile;
 import org.openl.rules.webstudio.web.repository.tree.TreeFolder;
@@ -35,6 +37,7 @@ import org.openl.rules.webstudio.web.util.WebStudioUtils;
 import org.openl.rules.workspace.dtr.DesignTimeRepositoryListener;
 import org.openl.rules.workspace.uw.UserWorkspace;
 import org.openl.rules.workspace.uw.UserWorkspaceListener;
+import org.openl.util.StringUtils;
 import org.richfaces.component.UITree;
 import org.richfaces.event.TreeSelectionChangeEvent;
 import org.richfaces.model.SequenceRowKey;
@@ -75,6 +78,8 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
 
     private IFilter<AProjectArtefact> filter = ALL_FILTER;
     private boolean hideDeleted = true;
+    private String filterString;
+    private String filterRepositoryId;
 
     private final Object lock = new Object();
     private String errorMessage;
@@ -205,7 +210,7 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
         }
         return null;
     }
-    
+
     public TreeProject getProjectNodeByPhysicalName(String repoId, String physicalName) {
         for (TreeNode treeNode : getRulesRepository().getChildNodes()) {
             TreeProject project = (TreeProject) treeNode;
@@ -410,6 +415,34 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
         }
     }
 
+    public void filter() {
+        IFilter<AProjectArtefact> filter = null;
+        if (StringUtils.isNotBlank(filterString)) {
+            filter = new RepositoryFileExtensionFilter(filterString);
+        }
+        IFilter<AProjectArtefact> repositoryFilter = null;
+        if (StringUtils.isNotBlank(filterRepositoryId)) {
+            repositoryFilter = new RepositoryFilter(filterRepositoryId);
+        }
+        if (repositoryFilter != null) {
+            if (filter != null) {
+                filter = new AndFilterIfSupport(repositoryFilter, filter);
+            } else {
+                filter = repositoryFilter;
+            }
+        }
+        setFilter(filter);
+        setHideDeleted(hideDeleted);
+    }
+
+    public void setFilter(String filterString, String filterRepositoryId, boolean hideDeleted) {
+        this.filter = filter != null ? filter : ALL_FILTER;
+        synchronized (lock) {
+            root = null;
+            errorMessage = null;
+        }
+    }
+
     public void setSelectedNode(TreeNode selectedNode) {
         selectionHolder.setSelectedNode(selectedNode);
     }
@@ -486,6 +519,22 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
         this.hideDeleted = hideDeleted;
     }
 
+    public String getFilterString() {
+        return filterString;
+    }
+
+    public void setFilterString(String filterString) {
+        this.filterString = filterString;
+    }
+
+    public String getFilterRepositoryId() {
+        return filterRepositoryId;
+    }
+
+    public void setFilterRepositoryId(String filterRepositoryId) {
+        this.filterRepositoryId = filterRepositoryId;
+    }
+
     public boolean getCanCreate() {
         return isGranted(CREATE_PROJECTS);
     }
@@ -556,12 +605,40 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
                 // any user can delete own local project
                 return true;
             }
-            return (!selectedProject.isLocked() || selectedProject.isLockedByUser(userWorkspace.getUser())) && isGranted(
-                DELETE_PROJECTS);
+            boolean unlocked = !selectedProject.isLocked() || selectedProject.isLockedByUser(userWorkspace.getUser());
+            boolean mainBranch = isMainBranch(selectedProject);
+            return unlocked && isGranted(DELETE_PROJECTS) && mainBranch;
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return false;
         }
+    }
+
+    public boolean getCanDeleteBranch() {
+        try {
+            UserWorkspaceProject selectedProject = getSelectedProject();
+            if (selectedProject.isLocalOnly()) {
+                return false;
+            }
+            boolean unlocked = !selectedProject.isLocked() || selectedProject.isLockedByUser(userWorkspace.getUser());
+            boolean mainBranch = isMainBranch(selectedProject);
+            return unlocked && isGranted(DELETE_PROJECTS) && !mainBranch;
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private boolean isMainBranch(UserWorkspaceProject selectedProject) {
+        boolean mainBranch = true;
+        Repository designRepository = selectedProject.getDesignRepository();
+        if (designRepository.supports().branches()) {
+            String branch = selectedProject.getBranch();
+            if (!((BranchRepository) designRepository).getBaseBranch().equals(branch)) {
+                mainBranch = false;
+            }
+        }
+        return mainBranch;
     }
 
     public boolean getCanErase() {
