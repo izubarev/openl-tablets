@@ -842,17 +842,6 @@ public class ProjectModel {
         workbookSyntaxNodes = null;
     }
 
-    private void resetWebStudioWorkspaceDependencyManagerForSingleMode(Module moduleInfo, Module previousModuleInfo) {
-        for (Module module : previousModuleInfo.getProject().getModules()) {
-            webStudioWorkspaceDependencyManager
-                .reset(new Dependency(DependencyType.MODULE, new IdentifierNode(null, null, module.getName(), null)));
-        }
-        for (Module module : moduleInfo.getProject().getModules()) {
-            webStudioWorkspaceDependencyManager
-                .reset(new Dependency(DependencyType.MODULE, new IdentifierNode(null, null, module.getName(), null)));
-        }
-    }
-
     public void setModuleInfo(Module moduleInfo) throws Exception {
         setModuleInfo(moduleInfo, ReloadType.NO);
     }
@@ -861,8 +850,6 @@ public class ProjectModel {
         if (moduleInfo == null || this.moduleInfo == moduleInfo && reloadType == ReloadType.NO) {
             return;
         }
-
-        Module previousModuleInfo = this.moduleInfo;
 
         if (reloadType != ReloadType.NO) {
             uriTableCache.clear();
@@ -1181,11 +1168,6 @@ public class ProjectModel {
     public IOpenMethod getCurrentDispatcherMethod(IOpenMethod method, String uri) {
         TableSyntaxNode tsn = getNode(uri);
         return getMethodFromDispatcher((OpenMethodDispatcher) method, tsn);
-    }
-
-    private boolean isVirtualWorkbook() {
-        XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
-        return xmi.getXlsModuleNode().getModule() instanceof VirtualSourceCodeModule;
     }
 
     public String getMessageNodeId(OpenLMessage message) {
