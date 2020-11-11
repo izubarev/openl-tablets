@@ -24,7 +24,7 @@ public class SimpleDependencyLoader implements IDependencyLoader {
 
     private final AbstractDependencyManager dependencyManager;
     private final String dependencyName;
-    private CompiledDependency compiledDependency;
+    private volatile CompiledDependency compiledDependency;
     private final boolean executionMode;
     private final ProjectDescriptor project;
     private final Module module;
@@ -72,7 +72,7 @@ public class SimpleDependencyLoader implements IDependencyLoader {
     }
 
     @Override
-    public final CompiledDependency getCompiledDependency() throws OpenLCompilationException {
+    public synchronized final CompiledDependency getCompiledDependency() throws OpenLCompilationException {
         if (compiledDependency != null) {
             log.debug("Compiled dependency '{}' is used from cache.", dependencyName);
             return compiledDependency;
@@ -86,6 +86,10 @@ public class SimpleDependencyLoader implements IDependencyLoader {
         OpenLBundleClassLoader simpleBundleClassLoader = new OpenLBundleClassLoader(null);
         simpleBundleClassLoader.addClassLoader(projectClassLoader);
         return simpleBundleClassLoader;
+    }
+
+    protected boolean isCacheableDependency() {
+        return true;
     }
 
     protected CompiledDependency compileDependency(String dependencyName,
@@ -109,15 +113,16 @@ public class SimpleDependencyLoader implements IDependencyLoader {
         Map<String, Object> parameters = configureExternalParameters(dependencyManager);
 
         rulesInstantiationStrategy.setExternalParameters(parameters);
-        rulesInstantiationStrategy.setServiceClass(EmptyInterface.class); // Prevent
-        // interface
-        // generation
+        rulesInstantiationStrategy.setServiceClass(EmptyInterface.class); // Prevent interface generation
         boolean oldValidationState = ValidationManager.isValidationEnabled();
         try {
             ValidationManager.turnOffValidation();
             CompiledOpenClass compiledOpenClass = rulesInstantiationStrategy.compile();
-            compiledDependency = new CompiledDependency(dependencyName, compiledOpenClass);
-            log.debug("Dependency '{}' is saved in cache.", dependencyName);
+            CompiledDependency compiledDependency = new CompiledDependency(dependencyName, compiledOpenClass);
+            if (isCacheableDependency()) {
+                this.compiledDependency = compiledDependency;
+                log.debug("Dependency '{}' is saved in cache.", dependencyName);
+            }
             return compiledDependency;
         } catch (Exception ex) {
             log.error(ex.getMessage(), ex);
@@ -140,7 +145,7 @@ public class SimpleDependencyLoader implements IDependencyLoader {
     }
 
     @Override
-    public void reset() {
+    public synchronized void reset() {
         if (compiledDependency != null) {
             OpenClassUtil.release(compiledDependency.getCompiledOpenClass());
         }

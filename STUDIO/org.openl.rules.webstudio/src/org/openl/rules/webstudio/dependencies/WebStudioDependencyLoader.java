@@ -2,6 +2,7 @@ package org.openl.rules.webstudio.dependencies;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.Objects;
 
 import org.openl.CompiledOpenClass;
 import org.openl.dependency.CompiledDependency;
@@ -16,16 +17,26 @@ import org.openl.types.NullOpenClass;
 
 final class WebStudioDependencyLoader extends SimpleDependencyLoader {
 
+    private final WebStudioWorkspaceRelatedDependencyManager webStudioWorkspaceRelatedDependencyManager;
+
     public WebStudioDependencyLoader(ProjectDescriptor project,
             Module module,
             WebStudioWorkspaceRelatedDependencyManager dependencyManager) {
         super(project, module, false, dependencyManager);
+        this.webStudioWorkspaceRelatedDependencyManager = dependencyManager;
     }
 
     @Override
     protected CompiledDependency onCompilationFailure(Exception ex, AbstractDependencyManager dependencyManager) {
         ClassLoader classLoader = dependencyManager.getExternalJarsClassLoader(getProject());
         return createFailedCompiledDependency(getDependencyName(), classLoader, ex);
+    }
+
+    @Override
+    protected boolean isCacheableDependency() {
+        final Long currentThreadVersion = webStudioWorkspaceRelatedDependencyManager.getThreadVersion().get();
+        final Long version = webStudioWorkspaceRelatedDependencyManager.getVersion().get();
+        return Objects.equals(currentThreadVersion, version);
     }
 
     private CompiledDependency createFailedCompiledDependency(String dependencyName,

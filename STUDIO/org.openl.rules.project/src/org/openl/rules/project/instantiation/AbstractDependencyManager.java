@@ -53,10 +53,9 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
 
         @Override
         public int hashCode() {
-            final int PRIME = 31;
             int result = 1;
-            result = PRIME * result + (reference == null ? 0 : reference.hashCode());
-            result = PRIME * result + (dependency == null ? 0 : dependency.hashCode());
+            result = 31 * result + (reference == null ? 0 : reference.hashCode());
+            result = 31 * result + (dependency == null ? 0 : dependency.hashCode());
             return result;
         }
 
@@ -141,19 +140,9 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
 
     // Disable cache. if cache required it should be used in loaders.
     @Override
-    public CompiledDependency loadDependency(IDependency dependency) throws OpenLCompilationException {
+    public synchronized CompiledDependency loadDependency(IDependency dependency) throws OpenLCompilationException {
+        final IDependencyLoader dependencyLoader = findDependencyLoader(dependency);
         final String dependencyName = dependency.getNode().getIdentifier();
-        Collection<IDependencyLoader> loaders = getDependencyLoaders().get(dependencyName);
-        if (loaders == null || loaders.isEmpty()) {
-            throw new OpenLCompilationException(String.format("Dependency '%s' is not found.", dependencyName),
-                null,
-                dependency.getNode().getSourceLocation());
-        }
-        if (loaders.size() > 1) {
-            throw new OpenLCompilationException(
-                String.format("Found more than one module with the same name '%s'.", dependencyName));
-        }
-        IDependencyLoader dependencyLoader = loaders.iterator().next();
         Deque<String> compilationStack = getCompilationStack();
         try {
             if (LOG.isDebugEnabled()) {
@@ -198,8 +187,23 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         }
     }
 
+    protected IDependencyLoader findDependencyLoader(IDependency dependency) throws OpenLCompilationException {
+        final String dependencyName = dependency.getNode().getIdentifier();
+        Collection<IDependencyLoader> loaders = getDependencyLoaders().get(dependencyName);
+        if (loaders == null || loaders.isEmpty()) {
+            throw new OpenLCompilationException(String.format("Dependency '%s' is not found.", dependencyName),
+                null,
+                dependency.getNode().getSourceLocation());
+        }
+        if (loaders.size() > 1) {
+            throw new OpenLCompilationException(
+                String.format("Found more than one module with the same name '%s'.", dependencyName));
+        }
+        return loaders.iterator().next();
+    }
+
     @Override
-    public void clearOddDataForExecutionMode() {
+    public synchronized void clearOddDataForExecutionMode() {
         if (isExecutionMode() && getCompilationStack().isEmpty()) {
             for (Collection<IDependencyLoader> depLoaders : getDependencyLoaders().values()) {
                 for (IDependencyLoader depLoader : depLoaders) {
@@ -255,8 +259,9 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             return externalJarsClassloaders.get(project.getName());
         }
         ClassLoader parentClassLoader = rootClassLoader == null ? this.getClass().getClassLoader() : rootClassLoader;
-        OpenLBundleClassLoader externalJarsClassloader = new OpenLBundleClassLoader(project.getClassPathUrls(), parentClassLoader);
-        //To load classes from dependency jars first
+        OpenLBundleClassLoader externalJarsClassloader = new OpenLBundleClassLoader(project.getClassPathUrls(),
+            parentClassLoader);
+        // To load classes from dependency jars first
         if (project.getDependencies() != null) {
             for (ProjectDependencyDescriptor projectDependencyDescriptor : project.getDependencies()) {
                 for (ProjectDescriptor projectDescriptor : getProjectDescriptors()) {

@@ -194,7 +194,6 @@ public class OpenLCompileManager {
                         // from
                         // dependencies
                         messages.addAll(compiledOpenClass.getMessages());
-
                     } catch (Exception e) {
                         messages.addAll(OpenLMessagesUtils.newErrorMessages(e));
                     }
