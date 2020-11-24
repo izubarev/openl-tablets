@@ -11,6 +11,7 @@ import java.util.*;
 
 import org.openl.CompiledOpenClass;
 import org.openl.OpenClassUtil;
+import org.openl.dependency.CompiledDependency;
 import org.openl.dependency.IDependencyManager;
 import org.openl.exception.OpenLCompilationException;
 import org.openl.exception.OpenlNotCheckedException;
@@ -30,12 +31,12 @@ import org.openl.rules.lang.xls.syntax.TableSyntaxNodeAdapter;
 import org.openl.rules.lang.xls.syntax.WorkbookSyntaxNode;
 import org.openl.rules.lang.xls.syntax.XlsModuleSyntaxNode;
 import org.openl.rules.project.abstraction.RulesProject;
-import org.openl.rules.project.dependencies.ProjectExternalDependenciesHelper;
 import org.openl.rules.project.impl.local.LocalRepository;
 import org.openl.rules.project.instantiation.IDependencyLoader;
 import org.openl.rules.project.instantiation.ReloadType;
 import org.openl.rules.project.instantiation.RulesInstantiationException;
 import org.openl.rules.project.instantiation.RulesInstantiationStrategy;
+import org.openl.rules.project.instantiation.SimpleDependencyLoader;
 import org.openl.rules.project.instantiation.SimpleMultiModuleInstantiationStrategy;
 import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.PathEntry;
@@ -886,14 +887,6 @@ public class ProjectModel {
         // Create instantiation strategy for opened module
 
         List<Module> modules = this.moduleInfo.getProject().getModules();
-        RulesInstantiationStrategy instantiationStrategy = new SimpleMultiModuleInstantiationStrategy(modules,
-            webStudioWorkspaceDependencyManager,
-            false);
-
-        Map<String, Object> externalParameters = ProjectExternalDependenciesHelper
-            .buildExternalParamsWithProjectDependencies(studio.getExternalProperties(), modules);
-
-        instantiationStrategy.setExternalParameters(externalParameters);
 
         // If autoCompile is false we cannot unload workbook during editing because we must show to a user latest edited
         // data (not parsed and compiled data).
@@ -903,11 +896,12 @@ public class ProjectModel {
         try {
             WorkbookLoaders.setCurrentFactory(factory);
 
+            compiledOpenClass = webStudioWorkspaceDependencyManager
+                .loadDependency(new Dependency(DependencyType.MODULE,
+                    new IdentifierNode(DependencyType.MODULE.name(), null, moduleInfo.getName(), null)))
+                .getCompiledOpenClass();
+
             // Find all dependent XlsModuleSyntaxNode-s
-            compiledOpenClass = instantiationStrategy.compile();
-
-            compiledOpenClass = validate(instantiationStrategy);
-
             addAllSyntaxNodes(webStudioWorkspaceDependencyManager.getDependencyLoaders().values());
 
             xlsModuleSyntaxNode = findXlsModuleSyntaxNode(webStudioWorkspaceDependencyManager);
@@ -930,6 +924,23 @@ public class ProjectModel {
             allXlsModuleSyntaxNodes.add(xmi.getXlsModuleNode());
 
             WorkbookLoaders.resetCurrentFactory();
+
+            webStudioWorkspaceDependencyManager
+                .loadDependencyAsync(
+                    new Dependency(DependencyType.MODULE,
+                        new IdentifierNode(DependencyType.MODULE.name(),
+                            null,
+                            SimpleDependencyLoader.buildDependencyName(moduleInfo.getProject(), null),
+                            null)),
+                    (e) -> {
+                        this.compiledOpenClass = e.getCompiledOpenClass();
+                        try {
+                            this.compiledOpenClass = this.validate(new SimpleMultiModuleInstantiationStrategy(modules,
+                                webStudioWorkspaceDependencyManager,
+                                false));
+                        } catch (RulesInstantiationException ignored) {
+                        }
+                    });
         } catch (Throwable t) {
             log.error("Failed to load.", t);
             Collection<OpenLMessage> messages = new LinkedHashSet<>();
@@ -965,6 +976,7 @@ public class ProjectModel {
         for (Collection<IDependencyLoader> collectionDependencyLoaders : collectionsDependencyLoaders) {
             for (IDependencyLoader dl : collectionDependencyLoaders) {
                 XlsMetaInfo metaInfo = null;
+                CompiledDependency compiledDependency = dl.getRefToCompiledDependency();
                 if (!projectDependencyLoaderFound && Objects.equals(dl.getProject().getName(),
                     moduleInfo.getProject().getName())) {
                     projectDependencyLoaderFound = true;
@@ -972,9 +984,8 @@ public class ProjectModel {
                         .getCompiledOpenClass()
                         .getOpenClassWithErrors()
                         .getMetaInfo();
-                } else if (!dl.isProject() && dl.isCompiled()) {
-                    metaInfo = (XlsMetaInfo) dl.getCompiledDependency()
-                        .getCompiledOpenClass()
+                } else if (!dl.isProject() && compiledDependency != null) {
+                    metaInfo = (XlsMetaInfo) compiledDependency.getCompiledOpenClass()
                         .getOpenClassWithErrors()
                         .getMetaInfo();
                 }
@@ -1000,7 +1011,7 @@ public class ProjectModel {
     private void prepareWebstudioWorkspaceDependencyManager() {
         if (webStudioWorkspaceDependencyManager == null) {
             webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                    .getDependencyManager(this.moduleInfo);
+                .getDependencyManager(this.moduleInfo);
         } else {
             boolean found = false;
             for (ProjectDescriptor projectDescriptor : webStudioWorkspaceDependencyManager.getProjectDescriptors()) {
@@ -1012,7 +1023,7 @@ public class ProjectModel {
             if (!found) {
                 webStudioWorkspaceDependencyManager.resetAll();
                 webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                        .getDependencyManager(this.moduleInfo);
+                    .getDependencyManager(this.moduleInfo);
             }
         }
     }

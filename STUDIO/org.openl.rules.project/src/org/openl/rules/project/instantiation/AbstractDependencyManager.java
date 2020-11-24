@@ -203,20 +203,15 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
     }
 
     @Override
-    public synchronized void clearOddDataForExecutionMode() {
+    public void clearOddDataForExecutionMode() {
         if (isExecutionMode() && getCompilationStack().isEmpty()) {
             for (Collection<IDependencyLoader> depLoaders : getDependencyLoaders().values()) {
                 for (IDependencyLoader depLoader : depLoaders) {
-                    if (depLoader.isCompiled()) {
-                        try {
-                            IOpenClass openClass = depLoader.getCompiledDependency()
-                                .getCompiledOpenClass()
-                                .getOpenClassWithErrors();
-                            if (openClass instanceof ComponentOpenClass) {
-                                ((ComponentOpenClass) openClass).clearOddDataForExecutionMode();
-                            }
-                        } catch (OpenLCompilationException e) {
-                            LOG.debug("Ignored error: ", e);
+                    CompiledDependency compiledDependency = depLoader.getRefToCompiledDependency();
+                    if (compiledDependency != null) {
+                        IOpenClass openClass = compiledDependency.getCompiledOpenClass().getOpenClassWithErrors();
+                        if (openClass instanceof ComponentOpenClass) {
+                            ((ComponentOpenClass) openClass).clearOddDataForExecutionMode();
                         }
                     }
                 }

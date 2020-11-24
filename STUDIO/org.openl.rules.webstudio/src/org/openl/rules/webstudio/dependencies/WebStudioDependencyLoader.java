@@ -2,7 +2,6 @@ package org.openl.rules.webstudio.dependencies;
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
-import java.util.Objects;
 
 import org.openl.CompiledOpenClass;
 import org.openl.dependency.CompiledDependency;
@@ -33,10 +32,10 @@ final class WebStudioDependencyLoader extends SimpleDependencyLoader {
     }
 
     @Override
-    protected boolean isCacheableDependency() {
+    protected boolean isActualDependency() {
         final Long currentThreadVersion = webStudioWorkspaceRelatedDependencyManager.getThreadVersion().get();
         final Long version = webStudioWorkspaceRelatedDependencyManager.getVersion().get();
-        return Objects.equals(currentThreadVersion, version);
+        return currentThreadVersion >= version;
     }
 
     private CompiledDependency createFailedCompiledDependency(String dependencyName,

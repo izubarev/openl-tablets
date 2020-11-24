@@ -247,7 +247,6 @@ public final class TestMojo extends BaseOpenLMojo {
                 SimpleProjectEngineFactory<?> factory = builder.setProject(testSourcePath)
                     .setClassLoader(classLoader)
                     .setExecutionMode(false)
-                    .setModule(module.getName())
                     .setExternalParameters(externalParameters)
                     .build();
 
@@ -255,15 +254,14 @@ public final class TestMojo extends BaseOpenLMojo {
                 CompiledOpenClass compiledOpenClass;
                 try {
                     CompiledDependency compiledDependency = factory.getDependencyManager()
-                            .loadDependency(new Dependency(DependencyType.MODULE,
-                                    new IdentifierNode(DependencyType.MODULE.name(), null, module.getName(), null)));
+                        .loadDependency(new Dependency(DependencyType.MODULE,
+                            new IdentifierNode(DependencyType.MODULE.name(), null, module.getName(), null)));
                     compiledOpenClass = compiledDependency.getCompiledOpenClass();
                 } catch (OpenLCompilationException e) {
                     Collection<OpenLMessage> messages = new LinkedHashSet<>();
                     for (OpenLMessage openLMessage : OpenLMessagesUtils.newErrorMessages(e)) {
-                        String message = String.format("Failed to load module '%s': %s",
-                                module.getName(),
-                                openLMessage.getSummary());
+                        String message = String
+                            .format("Failed to load module '%s': %s", module.getName(), openLMessage.getSummary());
                         messages.add(new OpenLMessage(message, Severity.ERROR));
                     }
                     ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();

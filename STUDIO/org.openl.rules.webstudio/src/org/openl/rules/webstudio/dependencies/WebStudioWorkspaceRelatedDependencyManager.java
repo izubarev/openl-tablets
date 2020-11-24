@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import org.openl.CompiledOpenClass;
 import org.openl.dependency.CompiledDependency;
@@ -33,14 +34,13 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
     private final AtomicLong version = new AtomicLong(0);
     private final ThreadLocal<Long> threadVersion = new ThreadLocal<>();
 
-    public WebStudioWorkspaceRelatedDependencyManager(List<ProjectDescriptor> projects,
+    public WebStudioWorkspaceRelatedDependencyManager(Collection<ProjectDescriptor> projects,
             ClassLoader rootClassLoader,
             boolean executionMode,
             Map<String, Object> externalParameters) {
         super(rootClassLoader, executionMode, externalParameters);
         this.projects = new ArrayList<>(Objects.requireNonNull(projects, "projects cannot be null"));
         initDependencyLoaders();
-        executorService.submit(this::compileAll);
     }
 
     @Override
@@ -75,17 +75,17 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
 
     public CompiledDependency getDependency(IDependency dependency) throws OpenLCompilationException {
         final IDependencyLoader dependencyLoader = findDependencyLoader(dependency);
-        return dependencyLoader.isCompiled() ? dependencyLoader.getCompiledDependency() : null;
+        return dependencyLoader.getRefToCompiledDependency();
     }
 
-    private void compileAll() {
-        getDependencyLoaders().forEach((k, v) -> v.forEach(e -> {
+    public void loadDependencyAsync(IDependency dependency, Consumer<CompiledDependency> consumer) {
+        executorService.submit(() -> {
             try {
-                e.getCompiledDependency();
-            } catch (OpenLCompilationException openLCompilationException) {
-                openLCompilationException.printStackTrace();
+                consumer.accept(this.loadDependency(dependency));
+            } catch (OpenLCompilationException e) {
+                consumer.accept(null);
             }
-        }));
+        });
     }
 
     protected Map<String, Collection<IDependencyLoader>> initDependencyLoaders() {
@@ -122,14 +122,12 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
     public void reset(IDependency dependency) {
         version.incrementAndGet();
         super.reset(dependency);
-        executorService.submit(this::compileAll);
     }
 
     @Override
     public void resetAll() {
         version.incrementAndGet();
         super.resetAll();
-        executorService.submit(this::compileAll);
     }
 
     public void shutdown() {

@@ -18,8 +18,7 @@ public class RangeCompilationTest {
 
     @Test
     public void testDecisionTableCompilation_and_ConditionEvaluators() throws RulesInstantiationException,
-                                                                       ProjectResolvingException,
-                                                                       ClassNotFoundException {
+                                                                       ProjectResolvingException {
 
         SimpleProjectEngineFactory<?> factory = new SimpleProjectEngineFactory.SimpleProjectEngineFactoryBuilder<>()
             .setProject("test/rules/ranges")

@@ -39,8 +39,8 @@ public class SimpleDependencyLoader implements IDependencyLoader {
     }
 
     @Override
-    public boolean isCompiled() {
-        return compiledDependency != null;
+    public CompiledDependency getRefToCompiledDependency() {
+        return compiledDependency;
     }
 
     @Override
@@ -72,13 +72,21 @@ public class SimpleDependencyLoader implements IDependencyLoader {
     }
 
     @Override
-    public synchronized final CompiledDependency getCompiledDependency() throws OpenLCompilationException {
-        if (compiledDependency != null) {
+    public final CompiledDependency getCompiledDependency() throws OpenLCompilationException {
+        CompiledDependency compiledDependency1 = compiledDependency;
+        if (compiledDependency1 != null) {
             log.debug("Compiled dependency '{}' is used from cache.", dependencyName);
-            return compiledDependency;
+            return compiledDependency1;
         }
         log.debug("Dependency '{}' is not found in cache.", dependencyName);
-        return compileDependency(dependencyName, dependencyManager);
+        synchronized (dependencyManager) {
+            compiledDependency1 = compiledDependency;
+            if (compiledDependency1 != null) {
+                log.debug("Compiled dependency '{}' is used from cache.", dependencyName);
+                return compiledDependency1;
+            }
+            return compileDependency(dependencyName, dependencyManager);
+        }
     }
 
     protected ClassLoader buildClassLoader(AbstractDependencyManager dependencyManager) {
@@ -88,7 +96,7 @@ public class SimpleDependencyLoader implements IDependencyLoader {
         return simpleBundleClassLoader;
     }
 
-    protected boolean isCacheableDependency() {
+    protected boolean isActualDependency() {
         return true;
     }
 
@@ -119,7 +127,7 @@ public class SimpleDependencyLoader implements IDependencyLoader {
             ValidationManager.turnOffValidation();
             CompiledOpenClass compiledOpenClass = rulesInstantiationStrategy.compile();
             CompiledDependency compiledDependency = new CompiledDependency(dependencyName, compiledOpenClass);
-            if (isCacheableDependency()) {
+            if (isActualDependency()) {
                 this.compiledDependency = compiledDependency;
                 log.debug("Dependency '{}' is saved in cache.", dependencyName);
             }
@@ -145,9 +153,10 @@ public class SimpleDependencyLoader implements IDependencyLoader {
     }
 
     @Override
-    public synchronized void reset() {
-        if (compiledDependency != null) {
-            OpenClassUtil.release(compiledDependency.getCompiledOpenClass());
+    public void reset() {
+        CompiledDependency compiledDependency1 = compiledDependency;
+        if (compiledDependency1 != null) {
+            OpenClassUtil.release(compiledDependency1.getCompiledOpenClass());
         }
         compiledDependency = null;
     }
