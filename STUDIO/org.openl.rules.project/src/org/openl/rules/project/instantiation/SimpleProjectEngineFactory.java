@@ -49,7 +49,7 @@ public class SimpleProjectEngineFactory<T> implements ProjectEngineFactory<T> {
 
         public SimpleProjectEngineFactoryBuilder<T> setProject(String project) {
             if (project == null || project.isEmpty()) {
-                throw new IllegalArgumentException("project cannot be null or empty.");
+                throw new IllegalArgumentException("project cannot be null or empty");
             }
             this.project = project;
             return this;
@@ -91,7 +91,7 @@ public class SimpleProjectEngineFactory<T> implements ProjectEngineFactory<T> {
 
         public SimpleProjectEngineFactoryBuilder<T> setWorkspace(String workspace) {
             if (workspace == null || workspace.isEmpty()) {
-                throw new IllegalArgumentException("workspace cannot be null or empty.");
+                throw new IllegalArgumentException("workspace cannot be null or empty");
             }
             this.workspace = workspace;
             return this;
@@ -103,7 +103,7 @@ public class SimpleProjectEngineFactory<T> implements ProjectEngineFactory<T> {
             }
             for (String dependency : projectDependencies) {
                 if (dependency == null || dependency.isEmpty()) {
-                    throw new IllegalArgumentException("Dependency cannot be null or empty.");
+                    throw new IllegalArgumentException("Dependency cannot be null or empty");
                 }
             }
             this.projectDependencies = projectDependencies;
@@ -115,7 +115,7 @@ public class SimpleProjectEngineFactory<T> implements ProjectEngineFactory<T> {
             if (workspace != null) {
                 File workspaceFile = new File(workspace);
                 if (!workspaceFile.isDirectory()) {
-                    throw new IllegalArgumentException("Workspace is not a directory with projects.");
+                    throw new IllegalArgumentException("Workspace is not a directory with projects");
                 }
                 File[] dirs = workspaceFile.listFiles(File::isDirectory);
                 if (dirs != null) {
@@ -136,7 +136,7 @@ public class SimpleProjectEngineFactory<T> implements ProjectEngineFactory<T> {
 
         public SimpleProjectEngineFactory<T> build() {
             if (project == null || project.isEmpty()) {
-                throw new IllegalArgumentException("project cannot be null or empty.");
+                throw new IllegalArgumentException("project cannot be null or empty");
             }
             File projectFile = new File(project);
             File[] dependencies = getProjectDependencies();
@@ -176,7 +176,7 @@ public class SimpleProjectEngineFactory<T> implements ProjectEngineFactory<T> {
         if (rulesInstantiationStrategy == null) {
             switch (modules.size()) {
                 case 0:
-                    throw new IllegalStateException("There are no modules to instantiate.");
+                    throw new IllegalStateException("There are no modules to instantiate");
                 case 1:
                     rulesInstantiationStrategy = RulesInstantiationStrategyFactory
                         .getStrategy(modules.iterator().next(), isExecutionMode(), dependencyManager, classLoader);

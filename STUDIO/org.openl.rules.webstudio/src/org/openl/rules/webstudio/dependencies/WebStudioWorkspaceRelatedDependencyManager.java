@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,9 +26,7 @@ import org.openl.syntax.code.IDependency;
 import org.openl.types.NullOpenClass;
 
 public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependencyManager {
-
-    private static final ExecutorService executorService = Executors
-        .newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    private static final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private final List<ProjectDescriptor> projects;
     private final AtomicLong version = new AtomicLong(0);
@@ -69,11 +68,6 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
 
     public AtomicLong getVersion() {
         return version;
-    }
-
-    public CompiledDependency getDependency(IDependency dependency) throws OpenLCompilationException {
-        final IDependencyLoader dependencyLoader = findDependencyLoader(dependency);
-        return dependencyLoader.getRefToCompiledDependency();
     }
 
     public void loadDependencyAsync(IDependency dependency, Consumer<CompiledDependency> consumer) {
@@ -129,7 +123,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
     @Override
     public void reset(IDependency dependency) {
         version.incrementAndGet();
-        super.reset(dependency);
+        super.reset(dependency, new HashSet<>());
     }
 
     @Override

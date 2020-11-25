@@ -25,7 +25,7 @@ public class WebStudioWorkspaceRelatedDependencyManagerTest {
         @Override
         public WebStudioWorkspaceRelatedSimpleProjectEngineFactory<T> build() {
             if (project == null || project.isEmpty()) {
-                throw new IllegalArgumentException("project cannot be null or empty.");
+                throw new IllegalArgumentException("project cannot be null or empty");
             }
             File projectFile = new File(project);
             File[] dependencies = getProjectDependencies();
@@ -82,7 +82,7 @@ public class WebStudioWorkspaceRelatedDependencyManagerTest {
             .getDependencyManager();
         Random rnd = new Random();
 
-        final int times = 1000;
+        final int times = 200;
         CountDownLatch countDownLatch = new CountDownLatch(times);
         int c = 0;
         for (int i = 0; i < times; i++) {
@@ -111,14 +111,14 @@ public class WebStudioWorkspaceRelatedDependencyManagerTest {
                     } else {
                         count1.incrementAndGet();
                         try {
-                            Thread.sleep(rnd.nextInt(100));
+                            Thread.sleep(rnd.nextInt(50));
                         } catch (InterruptedException ignored) {
                         }
                         try {
                             webStudioWorkspaceRelatedDependencyManager
                                 .loadDependencyAsync(
                                     new Dependency(DependencyType.MODULE,
-                                        new IdentifierNode(DependencyType.MODULE.name(),
+                                        new IdentifierNode( DependencyType.MODULE.name(),
                                             null,
                                             SimpleDependencyLoader.buildDependencyName(factory.getProjectDescriptor(),
                                                 null),

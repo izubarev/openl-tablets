@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class AbstractDependencyManager implements IDependencyManager {
 
-    private static final Logger LOG = LoggerFactory.getLogger(AbstractDependencyManager.class);
+    private final Logger log = LoggerFactory.getLogger(AbstractDependencyManager.class);
 
     private volatile Map<String, Collection<IDependencyLoader>> dependencyLoaders;
     private final LinkedHashSet<DependencyReference> dependencyReferences = new LinkedHashSet<>();
@@ -143,10 +143,11 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         final String dependencyName = dependency.getNode().getIdentifier();
         Deque<String> compilationStack = getCompilationStack();
         try {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug(
-                    compilationStack.contains(dependencyName) ? "Dependency '{}' in compilation stack."
-                                                              : "Dependency '{}' is not found in compilation stack.",
+            if (log.isDebugEnabled()) {
+                log.debug(
+                    compilationStack
+                        .contains(dependencyName) ? "Dependency '{}' in the compilation stack."
+                                                  : "Dependency '{}' is not found in the compilation stack.",
                     dependencyName);
             }
             boolean isCircularDependency = !dependencyLoader.isProject() && compilationStack.contains(dependencyName);
@@ -163,11 +164,11 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             CompiledDependency compiledDependency;
             try {
                 compilationStack.push(dependencyName);
-                LOG.debug("Dependency '{}' is added to compilation stack.", dependencyName);
+                log.debug("Dependency '{}' is added to the compilation stack.", dependencyName);
                 compiledDependency = dependencyLoader.getCompiledDependency();
             } finally {
                 compilationStack.poll();
-                LOG.debug("Dependency '{}' is removed from compilation stack.", dependencyName);
+                log.debug("Dependency '{}' is removed from the compilation stack.", dependencyName);
             }
 
             if (compiledDependency == null) {
@@ -195,7 +196,7 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         }
         if (loaders.size() > 1) {
             throw new OpenLCompilationException(
-                String.format("Found more than one module with the same name '%s'.", dependencyName));
+                String.format("Multiple modules with the same name '%s' are found.", dependencyName));
         }
         return loaders.iterator().next();
     }
@@ -236,10 +237,10 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
     private CompiledDependency throwCompilationError(IDependency dependency,
             String dependencyName) throws OpenLCompilationException {
         IdentifierNode node = dependency.getNode();
-        OpenLCompilationException exception = new OpenLCompilationException(String
-            .format("Dependency '%s' is not found.", dependencyName), null, node.getSourceLocation(), node.getModule());
-
-        throw exception;
+        throw new OpenLCompilationException(String.format("Dependency '%s' is not found.", dependencyName),
+            null,
+            node.getSourceLocation(),
+            node.getModule());
     }
 
     public synchronized ClassLoader getExternalJarsClassLoader(ProjectDescriptor project) {
@@ -275,7 +276,7 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    private void reset(IDependency dependency, Set<String> doNotDoTheSameResetTwice) {
+    protected final void reset(IDependency dependency, Set<String> doNotDoTheSameResetTwice) {
         final String dependencyName = dependency.getNode().getIdentifier();
         if (doNotDoTheSameResetTwice.contains(dependencyName)) {
             return;
