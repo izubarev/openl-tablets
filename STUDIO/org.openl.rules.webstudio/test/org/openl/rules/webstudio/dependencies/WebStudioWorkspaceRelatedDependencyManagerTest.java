@@ -3,9 +3,12 @@ package org.openl.rules.webstudio.dependencies;
 import java.io.File;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.openl.dependency.IDependencyManager;
 import org.openl.exception.OpenLCompilationException;
@@ -67,8 +70,8 @@ public class WebStudioWorkspaceRelatedDependencyManagerTest {
     }
 
     @Test
-    public void test() throws ProjectResolvingException, OpenLCompilationException {
-        ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    public void test() throws ProjectResolvingException, InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 5);
 
         final WebStudioWorkspaceRelatedSimpleProjectEngineFactory<?> factory = (WebStudioWorkspaceRelatedSimpleProjectEngineFactory<?>) (new WebStudioWorkspaceRelatedSimpleProjectEngineFactoryBuilder<>()
             .setProject("test/rules/compilation")
@@ -79,49 +82,67 @@ public class WebStudioWorkspaceRelatedDependencyManagerTest {
             .getDependencyManager();
         Random rnd = new Random();
 
-        for (int i = 0; i < 100; i++) {
+        final int times = 1000;
+        CountDownLatch countDownLatch = new CountDownLatch(times);
+        int c = 0;
+        for (int i = 0; i < times; i++) {
+            if (i % 4 == 0) {
+                c++;
+            }
+        }
+        CountDownLatch countDownLatchLambda = new CountDownLatch(c);
+        AtomicLong count = new AtomicLong(0);
+        AtomicLong count1 = new AtomicLong(0);
+        for (int i = 0; i < times; i++) {
             final int i0 = i;
             executorService.submit(() -> {
-                if (i0 % 4 == 0) {
-                    int p = (rnd.nextInt(3) + 1);
-                    webStudioWorkspaceRelatedDependencyManager.reset(new Dependency(DependencyType.MODULE,
-                        new IdentifierNode(DependencyType.MODULE.name(), null, "Module" + p, null)));
-                    try {
-                        webStudioWorkspaceRelatedDependencyManager.loadDependency(new Dependency(DependencyType.MODULE,
+                try {
+                    if (i0 % 4 != 0) {
+                        int p = (rnd.nextInt(3) + 1);
+                        webStudioWorkspaceRelatedDependencyManager.reset(new Dependency(DependencyType.MODULE,
                             new IdentifierNode(DependencyType.MODULE.name(), null, "Module" + p, null)));
-                    } catch (OpenLCompilationException e) {
-                        e.printStackTrace();
+                        try {
+                            webStudioWorkspaceRelatedDependencyManager
+                                .loadDependency(new Dependency(DependencyType.MODULE,
+                                    new IdentifierNode(DependencyType.MODULE.name(), null, "Module" + p, null)));
+                        } catch (OpenLCompilationException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+                        count1.incrementAndGet();
+                        try {
+                            Thread.sleep(rnd.nextInt(100));
+                        } catch (InterruptedException ignored) {
+                        }
+                        try {
+                            webStudioWorkspaceRelatedDependencyManager
+                                .loadDependencyAsync(
+                                    new Dependency(DependencyType.MODULE,
+                                        new IdentifierNode(DependencyType.MODULE.name(),
+                                            null,
+                                            SimpleDependencyLoader.buildDependencyName(factory.getProjectDescriptor(),
+                                                null),
+                                            null)),
+                                    (e) -> {
+                                        try {
+                                            if (!e.getCompiledOpenClass().hasErrors()) {
+                                                count.incrementAndGet();
+                                            }
+                                        } finally {
+                                            countDownLatchLambda.countDown();
+                                        }
+                                    });
+                        } catch (ProjectResolvingException e) {
+                            e.printStackTrace();
+                        }
                     }
-                } else {
-                    try {
-                        webStudioWorkspaceRelatedDependencyManager
-                            .loadDependencyAsync(
-                                new Dependency(DependencyType.MODULE,
-                                    new IdentifierNode(DependencyType.MODULE.name(),
-                                        null,
-                                        SimpleDependencyLoader.buildDependencyName(factory.getProjectDescriptor(),
-                                            null),
-                                        null)),
-                                (e) -> {
-                                    if (e.getCompiledOpenClass().hasErrors()) {
-                                        System.out.println("Compiled Project with errors");
-                                    } else {
-                                        System.out.println("Compiled Project");
-                                    }
-                                });
-                    } catch (ProjectResolvingException e) {
-                        e.printStackTrace();
-                    }
+                } finally {
+                    countDownLatch.countDown();
                 }
             });
         }
-
-        System.out.println("Compiled Module");
-
-        try {
-            Thread.sleep(100000000l);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        countDownLatch.await();
+        countDownLatchLambda.await();
+        Assert.assertEquals("Unexpected number of successfully compilations", count.get(), count1.get());
     }
 }

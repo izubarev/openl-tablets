@@ -15,8 +15,7 @@ import java.util.function.Consumer;
 import org.openl.CompiledOpenClass;
 import org.openl.dependency.CompiledDependency;
 import org.openl.exception.OpenLCompilationException;
-import org.openl.message.OpenLMessage;
-import org.openl.message.Severity;
+import org.openl.message.OpenLErrorMessage;
 import org.openl.rules.project.instantiation.AbstractDependencyManager;
 import org.openl.rules.project.instantiation.DependencyLoaderInitializationException;
 import org.openl.rules.project.instantiation.IDependencyLoader;
@@ -59,8 +58,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
             } else {
                 return new CompiledDependency(dependency.getNode().getIdentifier(),
                     new CompiledOpenClass(NullOpenClass.the,
-                        Collections.singletonList(
-                            new OpenLMessage("Rules compilation is interrupted by another thread.", Severity.ERROR))));
+                        Collections.singletonList(new CompilationInterruptedOpenLErrorMessage())));
             }
         }
     }
@@ -80,10 +78,20 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
 
     public void loadDependencyAsync(IDependency dependency, Consumer<CompiledDependency> consumer) {
         executorService.submit(() -> {
+            CompiledDependency compiledDependency;
             try {
-                consumer.accept(this.loadDependency(dependency));
+                compiledDependency = this.loadDependency(dependency);
             } catch (OpenLCompilationException e) {
-                consumer.accept(null);
+                compiledDependency = new CompiledDependency(dependency.getNode().getIdentifier(),
+                    new CompiledOpenClass(NullOpenClass.the, Collections.singletonList(new OpenLErrorMessage(e))));
+            }
+            if (compiledDependency.getCompiledOpenClass()
+                .getMessages()
+                .stream()
+                .anyMatch(e -> e instanceof CompilationInterruptedOpenLErrorMessage)) {
+                loadDependencyAsync(dependency, consumer);
+            } else {
+                consumer.accept(compiledDependency);
             }
         });
     }
