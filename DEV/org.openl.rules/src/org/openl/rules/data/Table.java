@@ -18,6 +18,7 @@ import org.openl.rules.table.IGridTable;
 import org.openl.rules.table.ILogicalTable;
 import org.openl.rules.table.LogicalTableHelper;
 import org.openl.rules.table.openl.GridCellSourceCodeModule;
+import org.openl.rules.table.xls.XlsUrlParser;
 import org.openl.syntax.exception.SyntaxNodeException;
 import org.openl.syntax.exception.SyntaxNodeExceptionUtils;
 import org.openl.syntax.impl.IdentifierNode;
@@ -192,7 +193,6 @@ public class Table implements ITable {
                 SyntaxNodeException error = SyntaxNodeExceptionUtils.createError(MessageUtils.EMPTY_UNQ_IDX_KEY,
                     new GridCellSourceCodeModule(gridTable));
                 cxt.addError(error);
-                getTableSyntaxNode().addError(error);
                 break;
             }
 
@@ -203,7 +203,6 @@ public class Table implements ITable {
                     MessageUtils.getDuplicatedKeyIndexErrorMessage(key),
                     new GridCellSourceCodeModule(gridTable));
                 cxt.addError(error);
-                getTableSyntaxNode().addError(error);
                 break;
             }
 
@@ -298,7 +297,6 @@ public class Table implements ITable {
                             }
                         } catch (SyntaxNodeException e) {
                             bindingContext.addError(e);
-                            tableSyntaxNode.addError(e);
                         }
                     }
                 }
@@ -357,10 +355,16 @@ public class Table implements ITable {
 
                             }
 
-                            if (foreignTable.getTableSyntaxNode().hasErrors()) {
-                                String message = MessageUtils
-                                    .getForeignTableCompilationErrorsMessage(foreignKeyTableName);
-                                ex = SyntaxNodeExceptionUtils.createError(message, null, foreignKeyTable);
+                            SyntaxNodeException[] errors = bindingContext.getErrors();
+                            for (SyntaxNodeException error : errors) {
+                                String sourceLocation = error.getSourceLocation();
+                                if (sourceLocation != null && foreignTable.getTableSyntaxNode()
+                                    .getUriParser()
+                                    .intersects(new XlsUrlParser(sourceLocation))) {
+                                    String message = MessageUtils
+                                        .getForeignTableCompilationErrorsMessage(foreignKeyTableName);
+                                    ex = SyntaxNodeExceptionUtils.createError(message, null, foreignKeyTable);
+                                }
                             }
                         }
                     }
@@ -368,7 +372,6 @@ public class Table implements ITable {
             }
             if (ex != null) {
                 bindingContext.addError(ex);
-                tableSyntaxNode.addError(ex);
                 hasError = true;
             }
         }
@@ -435,7 +438,6 @@ public class Table implements ITable {
                 startRow,
                 rows);
         } catch (SyntaxNodeException e) {
-            tableSyntaxNode.addError(e);
             openlAdapter.getBindingContext().addError(e);
         }
     }
@@ -669,7 +671,6 @@ public class Table implements ITable {
                         return columnDescriptor.populateLiteral(literal, lTable, openlAdapter, env);
                     }
                 } catch (SyntaxNodeException ex) {
-                    tableSyntaxNode.addError(ex);
                     openlAdapter.getBindingContext().addError(ex);
                 }
             }

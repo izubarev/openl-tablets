@@ -7,7 +7,18 @@ import static org.openl.rules.security.Privileges.EDIT_TABLES;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.openl.CompiledOpenClass;
 import org.openl.OpenClassUtil;
@@ -193,16 +204,19 @@ public class ProjectModel {
 
     // TODO Cache it
     public int getErrorNodesNumber() {
-        int count = 0;
+        AtomicInteger count = new AtomicInteger();
         if (compiledOpenClass != null) {
             TableSyntaxNode[] nodes = getTableSyntaxNodes();
             for (TableSyntaxNode tsn : nodes) {
-                if (tsn.hasErrors()) {
-                    count++;
-                }
+                XlsUrlParser parser = tsn.getUriParser();
+                getModuleMessages().stream()
+                        .filter(
+                                x -> x.getSourceLocation() != null && x.getSeverity().equals(Severity.ERROR) && new XlsUrlParser(
+                                        x.getSourceLocation()).intersects(parser))
+                        .findFirst().ifPresent(t -> count.incrementAndGet());
             }
         }
-        return count;
+        return count.get();
     }
 
     public Map<String, TableSyntaxNode> getAllTableNodes() {
@@ -593,7 +607,6 @@ public class ProjectModel {
 
         projectRoot = build(root);
 
-
         initProjectHistory();
     }
 
@@ -688,69 +701,66 @@ public class ProjectModel {
     private TreeNode build(ProjectTreeNode root) {
         TreeNode node = createNode(root);
         Iterable<ProjectTreeNode> children = root.getChildren();
+        int errors = 0;
         for (ProjectTreeNode child : children) {
             TreeNode rfChild = build(child);
             if (IProjectTypes.PT_WORKSHEET.equals(rfChild.getType()) || IProjectTypes.PT_WORKBOOK
-                    .equals(rfChild.getType())) {
+                .equals(rfChild.getType())) {
                 // skip workbook or worksheet node if it has no children nodes
                 if (!rfChild.getChildrenKeysIterator().hasNext()) {
                     continue;
                 }
             }
+            errors += rfChild.getNumErrors();
             node.addChild(rfChild, rfChild);
         }
+        node.setNumErrors(node.getNumErrors() + errors);
         return node;
     }
 
     private TreeNode createNode(ProjectTreeNode element) {
-        boolean leaf = element.isLeaf();
-        TreeNode node = new TreeNode(leaf);
 
+        boolean leaf = element.getChildren().isEmpty();
         String name = element.getDisplayName(INamedThing.SHORT);
-        node.setName(name);
-
         String title = element.getDisplayName(INamedThing.REGULAR);
-        node.setTitle(title);
 
         String type = element.getType();
-        node.setType(type);
-
         String url = null;
+        int state = 0;
+        int numErrors = 0;
+        boolean active = true;
+
         if (type.startsWith(IProjectTypes.PT_TABLE + ".")) {
             TableSyntaxNode tsn = element.getTableSyntaxNode();
             url = WebStudioUtils.getWebStudio().url("table?" + Constants.REQUEST_PARAM_ID + "=" + tsn.getId());
-        }
-        node.setUrl(url);
+            if (WebStudioUtils.getProjectModel().isTestable(element.getTableSyntaxNode())) {
+                state = 2; // has tests
+            }
 
-        int state1 = 0;
-        if (element.getTableSyntaxNode() != null && WebStudioUtils.getProjectModel()
-                .isTestable(element.getTableSyntaxNode())) {
-            state1 = 2; // has tests
-        }
-        int state = state1;
-        node.setState(state);
-
-        int numErrors = element.getNumErrors();
-        node.setNumErrors(numErrors);
-
-        boolean active = isActive(element);
-        node.setActive(active);
-
-        return node;
-    }
-
-    private boolean isActive(ProjectTreeNode element) {
-        TableSyntaxNode syntaxNode = element.getTableSyntaxNode();
-        if (syntaxNode != null) {
-            ITableProperties tableProperties = syntaxNode.getTableProperties();
+            XlsUrlParser parser = new XlsUrlParser(tsn.getUri());
+            numErrors = (int) getModuleMessages().stream()
+                .filter(
+                    x -> x.getSourceLocation() != null && x.getSeverity().equals(Severity.ERROR) && new XlsUrlParser(
+                        x.getSourceLocation()).intersects(parser))
+                .count();
+            ITableProperties tableProperties = tsn.getTableProperties();
             if (tableProperties != null) {
-                Boolean active = tableProperties.getActive();
-                if (active != null) {
-                    return active;
+                Boolean act = tableProperties.getActive();
+                if (act != null) {
+                    active = act;
                 }
             }
         }
-        return true;
+        TreeNode node = new TreeNode(leaf);
+        node.setName(name);
+        node.setTitle(title);
+        node.setType(type);
+        node.setUrl(url);
+        node.setState(state);
+        node.setNumErrors(numErrors);
+        node.setActive(active);
+
+        return node;
     }
 
     private void initProjectHistory() {
@@ -843,7 +853,7 @@ public class ProjectModel {
     }
 
     private ProjectTreeNode makeProjectTreeRoot() {
-        return new ProjectTreeNode(new String[] { null, null, null }, "root", null, null);
+        return new ProjectTreeNode(new String[] { null, null, null }, "root", null);
     }
 
     private List<TableSyntaxNode> getAllExecutableTables(TableSyntaxNode[] nodes) {
