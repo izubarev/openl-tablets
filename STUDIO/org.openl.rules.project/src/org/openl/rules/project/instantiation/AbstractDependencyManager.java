@@ -25,34 +25,34 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
     private final Logger log = LoggerFactory.getLogger(AbstractDependencyManager.class);
 
     private volatile Map<String, Collection<IDependencyLoader>> dependencyLoaders;
-    private final LinkedHashSet<DependencyReference> dependencyReferences = new LinkedHashSet<>();
+    private final LinkedHashSet<DependencyRelation> dependencyRelations = new LinkedHashSet<>();
     private final ThreadLocal<Deque<String>> compilationStackThreadLocal = ThreadLocal.withInitial(ArrayDeque::new);
     private final Map<String, ClassLoader> externalJarsClassloaders = new HashMap<>();
     private final ClassLoader rootClassLoader;
     protected boolean executionMode;
     private Map<String, Object> externalParameters;
 
-    public static class DependencyReference {
-        String reference;
+    public static class DependencyRelation {
+        String dependOnThisDependency;
         String dependency;
 
-        public DependencyReference(String dependency, String reference) {
+        public DependencyRelation(String dependency, String dependOnThisDependency) {
             this.dependency = dependency;
-            this.reference = reference;
+            this.dependOnThisDependency = dependOnThisDependency;
         }
 
         public String getDependency() {
             return dependency;
         }
 
-        public String getReference() {
-            return reference;
+        public String getDependOnThisDependency() {
+            return dependOnThisDependency;
         }
 
         @Override
         public int hashCode() {
             int result = 1;
-            result = 31 * result + (reference == null ? 0 : reference.hashCode());
+            result = 31 * result + (dependOnThisDependency == null ? 0 : dependOnThisDependency.hashCode());
             result = 31 * result + (dependency == null ? 0 : dependency.hashCode());
             return result;
         }
@@ -68,12 +68,12 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             if (getClass() != obj.getClass()) {
                 return false;
             }
-            DependencyReference other = (DependencyReference) obj;
-            if (reference == null) {
-                if (other.reference != null) {
+            DependencyRelation other = (DependencyRelation) obj;
+            if (dependOnThisDependency == null) {
+                if (other.dependOnThisDependency != null) {
                     return false;
                 }
-            } else if (!reference.equals(other.reference)) {
+            } else if (!dependOnThisDependency.equals(other.dependOnThisDependency)) {
                 return false;
             }
             if (dependency == null) {
@@ -85,7 +85,9 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
 
         @Override
         public String toString() {
-            return String.format("DependencyReference [reference=%s, dependency=%s]", reference, dependency);
+            return String.format("DependencyReference [dependOnThisDependency=%s, dependency=%s]",
+                dependOnThisDependency,
+                dependency);
         }
 
     }
@@ -152,8 +154,8 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             }
             boolean isCircularDependency = !dependencyLoader.isProject() && compilationStack.contains(dependencyName);
             if (!isCircularDependency && !compilationStack.isEmpty()) {
-                DependencyReference dr = new DependencyReference(getCompilationStack().getFirst(), dependencyName);
-                this.addDependencyReference(dr);
+                DependencyRelation dr = new DependencyRelation(getCompilationStack().getFirst(), dependencyName);
+                this.addDependencyRelation(dr);
             }
 
             if (isCircularDependency) {
@@ -262,7 +264,6 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
                 }
             }
         }
-
         externalJarsClassloaders.put(project.getName(), externalJarsClassloader);
         return externalJarsClassloader;
     }
@@ -283,28 +284,29 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         }
         doNotDoTheSameResetTwice.add(dependencyName);
 
-        List<DependencyReference> dependenciesToReset = new ArrayList<>();
-        List<DependencyReference> dependenciesReferencesToClear = new ArrayList<>();
-        for (DependencyReference dependencyReference : dependencyReferences) {
-            if (dependencyReference.getReference().equals(dependencyName)) {
-                dependenciesToReset.add(dependencyReference);
+        Set<String> dependenciesToReset = new HashSet<>();
+        List<DependencyRelation> dependenciesReferencesToRemove = new ArrayList<>();
+        for (DependencyRelation dependencyReference : dependencyRelations) {
+            if (dependencyReference.getDependOnThisDependency().equals(dependencyName)) {
+                dependenciesToReset.add(dependencyReference.getDependency());
             }
             if (dependencyReference.getDependency().equals(dependencyName)) {
-                dependenciesReferencesToClear.add(dependencyReference);
+                dependenciesReferencesToRemove.add(dependencyReference);
             }
         }
 
-        for (DependencyReference dependencyReference : dependenciesToReset) {
-            reset(new Dependency(DependencyType.MODULE,
-                new IdentifierNode(dependency.getNode().getType(), null, dependencyReference.getDependency(), null)),
+        for (String depName : dependenciesToReset) {
+            reset(
+                new Dependency(DependencyType.MODULE,
+                    new IdentifierNode(dependency.getNode().getType(), null, depName, null)),
                 doNotDoTheSameResetTwice);
         }
 
         Collection<IDependencyLoader> loaders = getDependencyLoaders().get(dependencyName);
         if (loaders != null) {
             loaders.forEach(IDependencyLoader::reset);
-            for (DependencyReference dependencyReference : dependenciesReferencesToClear) {
-                dependencyReferences.remove(dependencyReference);
+            for (DependencyRelation dependencyReference : dependenciesReferencesToRemove) {
+                dependencyRelations.remove(dependencyReference);
             }
         }
     }
@@ -323,10 +325,11 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         for (Collection<IDependencyLoader> loaders : getDependencyLoaders().values()) {
             loaders.forEach(IDependencyLoader::reset);
         }
+        dependencyRelations.clear();
     }
 
-    protected synchronized void addDependencyReference(DependencyReference dr) {
-        dependencyReferences.add(dr);
+    protected synchronized void addDependencyRelation(DependencyRelation dependencyRelation) {
+        dependencyRelations.add(dependencyRelation);
     }
 
     /**
