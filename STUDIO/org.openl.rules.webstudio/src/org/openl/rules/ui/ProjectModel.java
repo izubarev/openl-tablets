@@ -11,6 +11,7 @@ import java.util.*;
 
 import org.openl.CompiledOpenClass;
 import org.openl.OpenClassUtil;
+import org.openl.base.INamedThing;
 import org.openl.dependency.CompiledDependency;
 import org.openl.dependency.IDependencyManager;
 import org.openl.exception.OpenLCompilationException;
