@@ -1,7 +1,6 @@
 package org.openl.rules.webstudio.web;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -74,6 +73,7 @@ public class CopyBean {
     private Boolean copyOldRevisions = Boolean.FALSE;
     private Integer revisionsCount;
     private String errorMessage;
+    private Comments designRepoComments;
 
     public CopyBean(PropertyResolver propertyResolver, RepositoryTreeState repositoryTreeState) {
         this.propertyResolver = propertyResolver;
@@ -149,8 +149,7 @@ public class CopyBean {
     }
 
     public String getComment() {
-        if (comment == null && toRepositoryId != null) {
-            Comments designRepoComments = new Comments(propertyResolver, toRepositoryId);
+        if (comment == null && designRepoComments != null) {
             return designRepoComments.copiedFrom(getBusinessName());
         }
         return comment;
@@ -311,9 +310,7 @@ public class CopyBean {
             String targetRepo = ((UIInput) context.getViewRoot().findComponent("copyProjectForm:repository"))
                     .getSubmittedValue()
                     .toString();
-            boolean projectExist = userWorkspace.getDesignTimeRepository()
-                .hasProject(targetRepo,
-                    newProjectName) || userWorkspace.getLocalWorkspace().hasProject(null, newProjectName);
+            boolean projectExist = userWorkspace.getDesignTimeRepository().hasProject(targetRepo, newProjectName);
             WebStudioUtils.validate(!projectExist, "Project with such name already exists.");
         } catch (WorkspaceException e) {
             LOG.error(e.getMessage(), e);
@@ -376,6 +373,7 @@ public class CopyBean {
     public void setRepositoryId(String repositoryId) {
         this.repositoryId = repositoryId;
         this.toRepositoryId = repositoryId;
+        this.designRepoComments = new Comments(propertyResolver, toRepositoryId);
     }
 
     public String getToRepositoryId() {
@@ -409,7 +407,7 @@ public class CopyBean {
                 String pattern = applicationContext.getEnvironment()
                         .getProperty("repository.design.new-branch-pattern");
                 Objects.requireNonNull(pattern);
-                newBranchName = MessageFormat.format(pattern, simplifiedProjectName, userName, date);
+                newBranchName = designRepoComments.newBranch(simplifiedProjectName, userName, date);
             }
         } catch (Exception e) {
             LOG.error(e.getMessage(), e);

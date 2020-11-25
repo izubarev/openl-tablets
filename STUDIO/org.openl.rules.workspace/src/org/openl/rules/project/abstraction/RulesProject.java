@@ -398,6 +398,9 @@ public class RulesProject extends UserWorkspaceProject {
                     FileMappingData mappingData = repoData.getAdditionalData(FileMappingData.class);
                     if (mappingData != null) {
                         fileData.addAdditionalData(mappingData);
+                    } else if (!designRepository.supports().mappedFolders()) {
+                        // For flat folder structure external (virtual) path is equal to internal (real) path.
+                        fileData.addAdditionalData(new FileMappingData(repoData.getName(), repoData.getName()));
                     }
                 }
             } catch (IOException e) {
@@ -545,11 +548,19 @@ public class RulesProject extends UserWorkspaceProject {
         }
     }
 
-    public void setLocalFolderName(String localFolderName) {
-        this.localFolderName = localFolderName;
-    }
-
     public String getLocalFolderName() {
         return localFolderName;
+    }
+
+    public String getMainBusinessName() {
+        Repository repository = getDesignRepository();
+        if (repository == null) {
+            return getBusinessName();
+        }
+        String folderPath = getDesignFolderName();
+        if (repository.supports().mappedFolders()) {
+            folderPath = ((FolderMapper) repository).getBusinessName(folderPath);
+        }
+        return folderPath.substring(folderPath.lastIndexOf('/') + 1);
     }
 }

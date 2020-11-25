@@ -4,8 +4,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 
 import org.openl.base.INamedThing;
-import org.openl.rules.lang.xls.syntax.TableSyntaxNode;
-import org.openl.rules.method.ExecutableRulesMethod;
 import org.openl.rules.table.OpenLArgumentsCloner;
 import org.openl.rules.vm.SimpleRulesVM;
 import org.openl.types.IOpenClass;
@@ -15,9 +13,9 @@ import org.openl.vm.IRuntimeEnv;
 public class TestSuite implements INamedThing {
     public static String VIRTUAL_TEST_SUITE = "Virtual test suite";
     private TestSuiteMethod testSuiteMethod;
-    private TestDescription[] tests;
+    private final TestDescription[] tests;
     private TestRunner testRunner = new TestRunner(TestUnit.Builder.getInstance());
-    private OpenLArgumentsCloner cloner = new OpenLArgumentsCloner();
+    private final OpenLArgumentsCloner cloner = new OpenLArgumentsCloner();
 
     public TestSuite(TestSuiteMethod testSuiteMethod) {
         this.testSuiteMethod = testSuiteMethod;
@@ -63,18 +61,6 @@ public class TestSuite implements INamedThing {
         final TestUnitsResults testUnitResults = new TestUnitsResults(this);
         final CountDownLatch countDownLatch = new CountDownLatch(THREAD_COUNT);
         final ITestUnit[] testUnitResultsArray = new ITestUnit[getNumberOfTests()];
-
-        TestSuiteMethod testSuiteMethod = getTestSuiteMethod();
-        if (testSuiteMethod != null) {
-            IOpenMethod testedMethod = testSuiteMethod.getTestedMethod();
-            if (testSuiteMethod.getTestedMethod() instanceof ExecutableRulesMethod) {
-                TableSyntaxNode syntaxNode = ((ExecutableRulesMethod) testedMethod).getSyntaxNode();
-                if (syntaxNode.getErrors().length > 0) {
-                    testUnitResults.setTestedRulesHaveErrors(true);
-                    return testUnitResults;
-                }
-            }
-        }
 
         for (int i = 0; i < THREAD_COUNT; i++) {
             final int numThread = i;

@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -19,6 +20,7 @@ import org.openl.rules.common.ProjectException;
 import org.openl.rules.project.abstraction.ADeploymentProject;
 import org.openl.rules.project.abstraction.AProject;
 import org.openl.rules.project.abstraction.AProjectArtefact;
+import org.openl.rules.project.abstraction.AProjectFolder;
 import org.openl.rules.project.abstraction.RulesProject;
 import org.openl.rules.project.abstraction.UserWorkspaceProject;
 import org.openl.rules.project.resolving.ProjectDescriptorArtefactResolver;
@@ -114,7 +116,7 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
             Collection<RulesProject> rulesProjects = userWorkspace.getProjects();
 
             IFilter<AProjectArtefact> filter = this.filter;
-            for (AProject project : rulesProjects) {
+            for (RulesProject project : rulesProjects) {
                 if (!(filter.supports(RulesProject.class) && !filter.select(project))) {
                     addRulesProjectToTree(project);
                 }
@@ -262,32 +264,54 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
             branch = ((UserWorkspaceProject) project).getBranch();
         }
 
-        String repoId = artefact.getRepository().getId();
-        Iterator<String> it = artefact.getArtefactPath().getSegments().iterator();
-        TreeNode currentNode = getRulesRepository();
-        while (currentNode != null && it.hasNext()) {
-            String id = RepositoryUtils.getTreeNodeId(repoId, it.next());
-            currentNode = (TreeNode) currentNode.getChild(id);
+        TreeNode currentNode;
 
-            if (branch != null && currentNode != null) {
-                // If currentNode is a project, update its branch.
-                AProjectArtefact currentArtefact = currentNode.getData();
-                if (currentArtefact instanceof UserWorkspaceProject) {
-                    UserWorkspaceProject newProject = (UserWorkspaceProject) currentArtefact;
-                    if (!branch.equals(newProject.getBranch())) {
-                        try {
-                            RulesProject rulesProject = (RulesProject) project;
-                            boolean containsBranch = ((BranchRepository) rulesProject.getDesignRepository())
-                                .getBranches(((RulesProject) project).getDesignFolderName())
-                                .contains(branch);
-                            if (containsBranch) {
-                                // Update branch for the project
-                                newProject.setBranch(branch);
-                                // Rebuild children for the node
-                                currentNode.refresh();
+        if (project instanceof ADeploymentProject) {
+            currentNode = getDeploymentRepository();
+            String id = RepositoryUtils.getTreeNodeId(project);
+            currentNode = (TreeNode) currentNode.getChild(id);
+        } else {
+            String repoId = artefact.getRepository().getId();
+            Iterator<String> it = artefact.getArtefactPath().getSegments().iterator();
+            currentNode = getRulesRepository();
+            while (currentNode != null && it.hasNext()) {
+                String id = RepositoryUtils.getTreeNodeId(repoId, it.next());
+                TreeNode parentNode = currentNode;
+                currentNode = (TreeNode) currentNode.getChild(id);
+
+                if (currentNode == null) {
+                    if (artefact instanceof AProject) {
+                        String actualPath = ((AProject) artefact).getRealPath();
+                        currentNode = parentNode.getChildNodes().stream().filter(child -> {
+                            AProjectArtefact data = child.getData();
+                            if (data instanceof AProject) {
+                                return actualPath.equals(((AProject) data).getRealPath());
                             }
-                        } catch (ProjectException | IOException e) {
-                            log.error("Cannot update selected node: {}", e.getMessage(), e);
+                            return false;
+                        }).findFirst().orElse(null);
+                    }
+                }
+
+                if (branch != null && currentNode != null) {
+                    // If currentNode is a project, update its branch.
+                    AProjectArtefact currentArtefact = currentNode.getData();
+                    if (currentArtefact instanceof UserWorkspaceProject) {
+                        UserWorkspaceProject newProject = (UserWorkspaceProject) currentArtefact;
+                        if (!branch.equals(newProject.getBranch())) {
+                            try {
+                                RulesProject rulesProject = (RulesProject) project;
+                                boolean containsBranch = ((BranchRepository) rulesProject.getDesignRepository())
+                                    .getBranches(((RulesProject) project).getDesignFolderName())
+                                    .contains(branch);
+                                if (containsBranch) {
+                                    // Update branch for the project
+                                    newProject.setBranch(branch);
+                                    // Rebuild children for the node
+                                    currentNode.refresh();
+                                }
+                            } catch (ProjectException | IOException e) {
+                                log.error("Cannot update selected node: {}", e.getMessage(), e);
+                            }
                         }
                     }
                 }
@@ -329,8 +353,8 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
         }
     }
 
-    public void addRulesProjectToTree(AProject project) {
-        String name = project.getBusinessName();
+    void addRulesProjectToTree(RulesProject project) {
+        String name = project.getMainBusinessName();
         String id = RepositoryUtils.getTreeNodeId(project);
         if (!project.isDeleted() || !hideDeleted) {
             TreeProject prj = new TreeProject(id, name, filter, projectDescriptorResolver);
@@ -642,7 +666,8 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
     }
 
     public boolean getCanErase() {
-        return getSelectedProject().isDeleted() && isGranted(ERASE_PROJECTS);
+        UserWorkspaceProject project = getSelectedProject();
+        return project.isDeleted() && isGranted(ERASE_PROJECTS) && isMainBranch(project);
     }
 
     public boolean getCanOpen() {
@@ -700,7 +725,8 @@ public class RepositoryTreeState implements DesignTimeRepositoryListener {
     }
 
     public boolean getCanUndelete() {
-        return getSelectedProject().isDeleted() && isGranted(EDIT_PROJECTS);
+        UserWorkspaceProject project = getSelectedProject();
+        return project.isDeleted() && isGranted(EDIT_PROJECTS) && isMainBranch(project);
     }
 
     // for any project artefact

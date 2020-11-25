@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.openl.base.INamedThing;
 import org.openl.binding.IBoundNode;
 import org.openl.binding.MethodUtil;
 import org.openl.meta.IMetaInfo;
@@ -70,14 +69,14 @@ public final class FieldUsageSearcher {
                 IOpenClass[] declaredClasses = combinedOpenField.getDeclaredClasses();
                 Map<IOpenClass, List<IOpenClass>> types = Arrays.stream(declaredClasses)
                     .collect(Collectors.groupingBy(c -> c.getField(boundField.getName()).getType()));
-                String classNames = "";
+                StringBuilder classNames = new StringBuilder();
                 if (types.keySet().size() > 1) {
                     for (IOpenClass iOpenClass : types.keySet()) {
-                        classNames += "\n" + iOpenClass.getDisplayName(INamedThing.SHORT) + " in ";
-                        classNames += configureClassNames(types.get(iOpenClass));
+                        classNames.append("\n").append(MethodUtil.printType(iOpenClass)).append(" in ");
+                        classNames.append(configureClassNames(types.get(iOpenClass)));
                     }
                 } else if (types.keySet().size() == 1) {
-                    classNames = configureClassNames(types.values().iterator().next());
+                    classNames = new StringBuilder(configureClassNames(types.values().iterator().next()));
                 }
                 String prefix = declaredClasses.length > 1 ? "Spreadsheets: " : "Spreadsheet ";
                 description = prefix + classNames + "\n" + MethodUtil.printType(boundField.getType()) + " " + boundField

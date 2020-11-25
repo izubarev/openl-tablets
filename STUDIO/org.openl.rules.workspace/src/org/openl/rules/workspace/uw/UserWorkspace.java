@@ -1,7 +1,9 @@
 package org.openl.rules.workspace.uw;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import org.openl.rules.common.ProjectException;
 import org.openl.rules.project.abstraction.ADeploymentProject;
@@ -41,11 +43,15 @@ public interface UserWorkspace extends ProjectsContainer {
 
     void syncProjects();
 
+    String getActualName(AProject project) throws ProjectException, IOException;
+
     void release();
 
     void removeWorkspaceListener(UserWorkspaceListener listener);
 
     void uploadLocalProject(String repositoryId, String name, String projectFolder, String comment) throws ProjectException;
+
+    Optional<RulesProject> getProjectByPath(String repositoryId, String realPath);
 
     WorkspaceUser getUser();
 

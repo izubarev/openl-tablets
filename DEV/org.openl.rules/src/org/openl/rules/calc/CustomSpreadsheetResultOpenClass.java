@@ -196,7 +196,7 @@ public class CustomSpreadsheetResultOpenClass extends ADynamicClass implements M
             boolean detailedPlainModel) {
         if (beanClass != null) {
             throw new IllegalStateException(
-                "Bean class for custom spreadsheet result is already generated. " + "This spreadsheet result type cannot be extended.");
+                "Bean class for custom spreadsheet result is already generated. This spreadsheet result type cannot be extended.");
         }
 
         List<String> nRowNames = Arrays.stream(this.rowNames).collect(toList());

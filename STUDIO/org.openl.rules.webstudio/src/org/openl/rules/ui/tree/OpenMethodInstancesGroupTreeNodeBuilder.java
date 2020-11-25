@@ -21,8 +21,6 @@ import org.openl.util.StringUtils;
  */
 public class OpenMethodInstancesGroupTreeNodeBuilder extends OpenMethodsGroupTreeNodeBuilder {
 
-    private static final String TABLE_INSTANCES_GROUP_NAME = "Table Group Instance";
-
     /**
      * {@inheritDoc}
      */
@@ -32,14 +30,6 @@ public class OpenMethodInstancesGroupTreeNodeBuilder extends OpenMethodsGroupTre
         TableSyntaxNode tableSyntaxNode = (TableSyntaxNode) nodeObject;
 
         return TableSyntaxNodeUtils.getTableDisplayValue(tableSyntaxNode, i, WebStudioFormats.getInstance());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public String getName() {
-        return TABLE_INSTANCES_GROUP_NAME;
     }
 
     /**
@@ -56,22 +46,6 @@ public class OpenMethodInstancesGroupTreeNodeBuilder extends OpenMethodsGroupTre
     @Override
     public String getUrl(Object sorterObject) {
         return null;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getWeight(Object sorterObject) {
-        return 0;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Object makeObject(TableSyntaxNode tableSyntaxNode) {
-        return tableSyntaxNode;
     }
 
     @Override
@@ -133,15 +107,6 @@ public class OpenMethodInstancesGroupTreeNodeBuilder extends OpenMethodsGroupTre
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Object getProblems(Object nodeObject) {
-        TableSyntaxNode tsn = (TableSyntaxNode) nodeObject;
-        return tsn.getErrors() != null ? tsn.getErrors() : tsn.getValidationResult();
-    }
-
-    /**
      * Gets the majority name of methods group.
      *
      * @param overloads collection of TableSyntaxNodeKeys what belong to group.
@@ -188,6 +153,6 @@ public class OpenMethodInstancesGroupTreeNodeBuilder extends OpenMethodsGroupTre
      * @return tree node
      */
     private ProjectTreeNode makeFolderNode(String folderName) {
-        return new ProjectTreeNode(new String[] { folderName, folderName, folderName }, "folder", null, null, 0, null);
+        return new ProjectTreeNode(new String[] { folderName, folderName, folderName }, "folder", null, null);
     }
 }

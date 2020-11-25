@@ -17,11 +17,16 @@
 
         <h:form id="deleteBranchForm" style="max-width: 550px">
             <ui:param name="project" value="#{repositoryTreeController.selectedProject}"/>
-            <h:panelGroup id="modalDeleteBranchData" rendered="#{not empty project}">
+            <h:panelGroup id="modalDeleteBranchData" rendered="#{repositoryTreeController.branchDeletable}">
 
                 <div>
                     <h:outputText value="Are you sure you want to delete branch '#{project.branch}'?"/>
                 </div>
+                <h:panelGroup layout="block" rendered="#{project.modified}">
+                    <p>
+                        <h:graphicImage value="/images/warning.svg" alt="warning" style="height: 11px;"/>
+                        <span class="attention-text">WARNING!</span> Project '#{project.businessName}' is modified, if you delete branch, all changes will be lost.</p>
+                </h:panelGroup>
                 <h:panelGroup layout="block" rendered="#{not repositoryTreeController.isMergedIntoMain(project)}">
                     <p>
                         <h:graphicImage value="/images/warning.svg" alt="warning" style="height: 11px;"/>
@@ -32,16 +37,19 @@
 
             <footer>
                 <h:commandButton value="Delete" action="#{repositoryTreeController.deleteBranch}"
-                                 rendered="#{repositoryTreeController.isMergedIntoMain(project)}"
+                                 rendered="#{repositoryTreeController.isMergedIntoMain(project) and not project.modified}"
                                  styleClass="button-primary"/>
                 <h:commandButton value="I understand the consequences, delete this branch"
                                  action="#{repositoryTreeController.deleteBranch}"
-                                 rendered="#{not repositoryTreeController.isMergedIntoMain(project)}"
+                                 rendered="#{not repositoryTreeController.isMergedIntoMain(project) or project.modified}"
                                  styleClass="button-warning"/>
                 <input type="button" value="Cancel" onclick="RichFaces.$('modalDeleteBranch').hide();"/>
             </footer>
 
-            <a4j:jsFunction name="renderDeleteBranchForm" render="@form" oncomplete="showDeleteBranchDialog()"/>
+            <input id="branchDeletableState" type="hidden" value="#{repositoryTreeController.branchDeletable}"/>
+
+            <a4j:jsFunction name="renderDeleteBranchForm" render="@form projectTree nodeView" oncomplete="showDeleteBranchDialog()"
+                            action="#{repositoryTreeController.checkBranchIsDeletable}"/>
 
         </h:form>
 
@@ -55,7 +63,9 @@
         }
 
         function showDeleteBranchDialog() {
-            RichFaces.$("modalDeleteBranch").show();
+            if ($j('#branchDeletableState').val() === 'true') {
+                RichFaces.$("modalDeleteBranch").show();
+            }
         }
 
         //]]>

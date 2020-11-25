@@ -16,22 +16,10 @@ import org.openl.util.StringUtils;
 public class ModulePropertiesTableNodeBuilder extends BaseTableTreeNodeBuilder {
 
     private static final String FOLDER_NAME = "Module Properties";
-    private static final String MODULE_PROPERTIES_TABLE = "Module Properties Table";
 
     @Override
     public String[] getDisplayValue(Object nodeObject, int i) {
         return new String[] { FOLDER_NAME, FOLDER_NAME, FOLDER_NAME };
-    }
-
-    @Override
-    public String getName() {
-        return MODULE_PROPERTIES_TABLE;
-    }
-
-    @Override
-    public Object getProblems(Object nodeObject) {
-        TableSyntaxNode tsn = (TableSyntaxNode) nodeObject;
-        return tsn.getErrors() != null ? tsn.getErrors() : tsn.getValidationResult();
     }
 
     @Override
@@ -43,16 +31,6 @@ public class ModulePropertiesTableNodeBuilder extends BaseTableTreeNodeBuilder {
     public String getUrl(Object nodeObject) {
         TableSyntaxNode tableSyntaxNode = (TableSyntaxNode) nodeObject;
         return tableSyntaxNode.getUri();
-    }
-
-    @Override
-    public int getWeight(Object nodeObject) {
-        return 0;
-    }
-
-    @Override
-    protected Object makeObject(TableSyntaxNode tableSyntaxNode) {
-        return tableSyntaxNode;
     }
 
     @Override
@@ -83,9 +61,7 @@ public class ModulePropertiesTableNodeBuilder extends BaseTableTreeNodeBuilder {
         return new ProjectTreeNode(new String[] { folderName, folderName, folderName },
             IProjectTypes.PT_FOLDER,
             null,
-            null,
-            0,
-            null);
+                null);
     }
 
 }

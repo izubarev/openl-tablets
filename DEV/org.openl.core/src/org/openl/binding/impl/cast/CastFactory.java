@@ -1,15 +1,10 @@
 package org.openl.binding.impl.cast;
 
+import java.io.Serializable;
 import java.lang.reflect.Modifier;
-import java.util.ArrayDeque;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 import org.openl.binding.ICastFactory;
 import org.openl.binding.IMethodFactory;
@@ -23,6 +18,7 @@ import org.openl.types.IOpenClass;
 import org.openl.types.IOpenMethod;
 import org.openl.types.NullOpenClass;
 import org.openl.types.impl.ADynamicClass;
+import org.openl.types.impl.ComponentTypeArrayOpenClass;
 import org.openl.types.impl.DomainOpenClass;
 import org.openl.types.java.JavaOpenClass;
 import org.openl.util.ClassUtils;
@@ -35,6 +31,14 @@ import org.slf4j.LoggerFactory;
  * @author snshor, Yury Molchan, Marat Kamalov
  */
 public class CastFactory implements ICastFactory {
+    private static final Set<Class<?>> INTERFACES_IGNORABLE_IN_SEARCH_PARENT_CLASS = Collections
+        .unmodifiableSet(new HashSet<>(Arrays.asList(Serializable.class, Cloneable.class, Comparable.class)));
+
+    private static Predicate<IOpenClass> isNotIgnorableInParentSearch = (
+            e) -> e != null && e.getInstanceClass() != null && !INTERFACES_IGNORABLE_IN_SEARCH_PARENT_CLASS
+                .contains(e.getInstanceClass()) && e.getInstanceClass().getPackage() != null && !Objects
+                    .equals(e.getInstanceClass().getPackage().getName(), "java.lang.constant");
+
     private static final Logger LOG = LoggerFactory.getLogger(CastFactory.class);
 
     public static final int NO_CAST_DISTANCE = 1;
@@ -114,6 +118,13 @@ public class CastFactory implements ICastFactory {
             IOpenClass openClass2,
             ICastFactory casts,
             Iterable<IOpenMethod> methods) {
+        if (openClass1 == null) {
+            throw new IllegalArgumentException("openClass1 cannot be null");
+        }
+        if (openClass2 == null) {
+            throw new IllegalArgumentException("openClass2 cannot be null");
+        }
+
         if (NullOpenClass.the.equals(openClass1)) {
             return getWrapperIfPrimitive(openClass2);
         }
@@ -121,9 +132,51 @@ public class CastFactory implements ICastFactory {
             return getWrapperIfPrimitive(openClass1);
         }
 
-        // Use java classes only because wa can't find cast method with OpenL types
-        openClass1 = JavaOpenClass.getOpenClass(openClass1.getInstanceClass());
-        openClass2 = JavaOpenClass.getOpenClass(openClass2.getInstanceClass());
+        if (ThrowableVoid.class.equals(openClass1.getInstanceClass())) {
+            return openClass2;
+        }
+        if (ThrowableVoid.class.equals(openClass2.getInstanceClass())) {
+            return openClass1;
+        }
+
+        if (openClass1 instanceof DomainOpenClass && !(openClass2 instanceof DomainOpenClass) || !(openClass1 instanceof DomainOpenClass) && openClass2 instanceof DomainOpenClass) {
+            return findClosestClass(
+                openClass1 instanceof DomainOpenClass ? JavaOpenClass.getOpenClass(openClass1.getInstanceClass())
+                                                      : openClass1,
+                openClass2 instanceof DomainOpenClass ? JavaOpenClass.getOpenClass(openClass2.getInstanceClass())
+                                                      : openClass2,
+                casts,
+                methods);
+        }
+
+        IOpenCast cast1To2 = casts.getCast(openClass1, openClass2);
+        IOpenCast cast2To1 = casts.getCast(openClass2, openClass1);
+        if (cast1To2 != null && cast2To1 != null) {
+            if (!cast1To2.isImplicit() && cast2To1.isImplicit()) {
+                return openClass1;
+            }
+            if (!cast2To1.isImplicit() && cast1To2.isImplicit()) {
+                return openClass2;
+            }
+            // For example NoCast
+            if (cast1To2.isImplicit() && cast2To1.isImplicit()) {
+                return cast1To2.getDistance() < cast2To1.getDistance() ? openClass2 : openClass1;
+            }
+        }
+
+        if (openClass1 instanceof DomainOpenClass) {
+            return findClosestClass(JavaOpenClass.getOpenClass(openClass1.getInstanceClass()),
+                JavaOpenClass.getOpenClass(openClass2.getInstanceClass()),
+                casts,
+                methods);
+        }
+
+        int dim = 0;
+        while (openClass1.isArray() && openClass2.isArray()) {
+            openClass1 = openClass1.getComponentClass();
+            openClass2 = openClass2.getComponentClass();
+            dim++;
+        }
 
         Iterator<IOpenMethod> itr = methods.iterator();
         Set<IOpenClass> openClass1Candidates = new LinkedHashSet<>();
@@ -160,7 +213,11 @@ public class CastFactory implements ICastFactory {
         IOpenClass ret = chooseClosest(casts, openClass1Candidates);
 
         if (ret == null) {
-            return casts.findParentClass(openClass1, openClass2);
+            IOpenClass c = casts.findParentClass(openClass1, openClass2);
+            if (c == null) {
+                c = JavaOpenClass.OBJECT;
+            }
+            return dim > 0 ? ComponentTypeArrayOpenClass.createComponentTypeArrayOpenClass(c, dim) : c;
         }
 
         // If one class is not primitive we use wrapper for prevent NPE
@@ -172,7 +229,7 @@ public class CastFactory implements ICastFactory {
             }
         }
 
-        return ret;
+        return dim > 0 ? ComponentTypeArrayOpenClass.createComponentTypeArrayOpenClass(ret, dim) : ret;
     }
 
     @Override
@@ -181,87 +238,91 @@ public class CastFactory implements ICastFactory {
     }
 
     public static IOpenClass findParentClass1(IOpenClass openClass1, IOpenClass openClass2) {
-        IOpenClass t1 = openClass1;
-        IOpenClass t2 = openClass2;
-        if (t1.getInstanceClass() != null && t2.getInstanceClass() != null) {
-            if (t1.getInstanceClass().isPrimitive() && !t2.getInstanceClass().isPrimitive() || !t1.getInstanceClass()
-                .isPrimitive() && t2.getInstanceClass().isPrimitive()) {
-                if (t1.getInstanceClass().isPrimitive()) {
-                    t1 = JavaOpenClass.getOpenClass(ClassUtils.primitiveToWrapper(t1.getInstanceClass()));
-                }
-                if (t2.getInstanceClass().isPrimitive()) {
-                    t2 = JavaOpenClass.getOpenClass(ClassUtils.primitiveToWrapper(t2.getInstanceClass()));
-                }
-            }
+        if (openClass1 == null) {
+            throw new IllegalArgumentException("openClass1 cannot be null");
         }
-        return findParentClassNoPrimitives(t1, t2);
-    }
-
-    private static IOpenClass findParentClassNoPrimitives(IOpenClass class1, IOpenClass class2) {
-        if (NullOpenClass.isAnyNull(class1)) {
-            if (NullOpenClass.isAnyNull(class2)) {
-                return class2;
-            }
-            return JavaOpenClass.getOpenClass(ClassUtils.primitiveToWrapper(class2.getInstanceClass()));
+        if (openClass2 == null) {
+            throw new IllegalArgumentException("openClass2 cannot be null");
         }
-        if (NullOpenClass.isAnyNull(class2)) {
-            if (NullOpenClass.isAnyNull(class1)) {
-                return class1;
+        if (NullOpenClass.isAnyNull(openClass1)) {
+            if (NullOpenClass.isAnyNull(openClass2)) {
+                return openClass2;
             }
-            return JavaOpenClass.getOpenClass(ClassUtils.primitiveToWrapper(class1.getInstanceClass()));
+            return JavaOpenClass.getOpenClass(ClassUtils.primitiveToWrapper(openClass2.getInstanceClass()));
+        }
+        if (NullOpenClass.isAnyNull(openClass2)) {
+            if (NullOpenClass.isAnyNull(openClass1)) {
+                return openClass1;
+            }
+            return JavaOpenClass.getOpenClass(ClassUtils.primitiveToWrapper(openClass1.getInstanceClass()));
         }
 
-        if (class1.isArray() && class2.isArray()) {
+        if (openClass1.getInstanceClass() != null && openClass2.getInstanceClass() != null) {
+            if (openClass1.getInstanceClass().isPrimitive() && !openClass2.getInstanceClass()
+                .isPrimitive() || !openClass1.getInstanceClass().isPrimitive() && openClass2.getInstanceClass()
+                    .isPrimitive()) {
+                if (openClass1.getInstanceClass().isPrimitive()) {
+                    openClass1 = JavaOpenClass
+                        .getOpenClass(ClassUtils.primitiveToWrapper(openClass1.getInstanceClass()));
+                }
+                if (openClass2.getInstanceClass().isPrimitive()) {
+                    openClass2 = JavaOpenClass
+                        .getOpenClass(ClassUtils.primitiveToWrapper(openClass2.getInstanceClass()));
+                }
+            }
+        }
+
+        if (openClass1.isArray() && openClass2.isArray()) {
             int dim = 0;
-            while (class1.isArray() && class2.isArray()) {
+            while (openClass1.isArray() && openClass2.isArray()) {
+                openClass1 = openClass1.getComponentClass();
+                openClass2 = openClass2.getComponentClass();
                 dim++;
-                class1 = class1.getComponentClass();
-                class2 = class2.getComponentClass();
             }
-            IOpenClass parentClass = findParentClassNoPrimitives(class1, class2);
+            IOpenClass parentClass = findParentClass1(openClass1, openClass2);
             if (parentClass == null) {
                 return null;
             }
-            return parentClass.getArrayType(dim);
+            return ComponentTypeArrayOpenClass.createComponentTypeArrayOpenClass(parentClass, dim);
         }
 
-        if (class1.getInstanceClass() == null && class2.getInstanceClass() == null) {
-            return class1;
+        if (openClass1.getInstanceClass() == null && openClass2.getInstanceClass() == null) {
+            return openClass1;
         }
 
         // If class1 is NULL literal
-        if (class1.getInstanceClass() == null) {
-            if (class2.getInstanceClass().isPrimitive()) {
+        if (openClass1.getInstanceClass() == null) {
+            if (openClass2.getInstanceClass().isPrimitive()) {
                 return null;
             } else {
-                return class2;
+                return openClass2;
             }
         }
 
         // If class2 is NULL literal
-        if (class2.getInstanceClass() == null) {
-            if (class1.getInstanceClass().isPrimitive()) {
+        if (openClass2.getInstanceClass() == null) {
+            if (openClass1.getInstanceClass().isPrimitive()) {
                 return null;
             } else {
-                return class1;
+                return openClass1;
             }
         }
 
-        if (class1.getInstanceClass().isPrimitive() || class2.getInstanceClass().isPrimitive()) { // If
+        if (openClass1.getInstanceClass().isPrimitive() || openClass2.getInstanceClass().isPrimitive()) { // If
             // one
             // is
             // primitive
-            if (class1.equals(class2)) {
-                return class1;
+            if (openClass1.equals(openClass2)) {
+                return openClass1;
             }
             return null;
         }
         Set<IOpenClass> superClasses = new HashSet<>();
-        superClasses.add(class1);
-        if (!class1.equals(JavaOpenClass.getOpenClass(class1.getInstanceClass()))) {
-            superClasses.add(JavaOpenClass.getOpenClass(class1.getInstanceClass()));
+        superClasses.add(openClass1);
+        if (!openClass1.equals(JavaOpenClass.getOpenClass(openClass1.getInstanceClass()))) {
+            superClasses.add(JavaOpenClass.getOpenClass(openClass1.getInstanceClass()));
         }
-        IOpenClass openClass = class1;
+        IOpenClass openClass = openClass1;
         Set<IOpenClass> interfaces = new LinkedHashSet<>();
         if (openClass.isInterface()) {
             interfaces.add(openClass);
@@ -278,18 +339,18 @@ public class CastFactory implements ICastFactory {
             }
             openClass = next;
         }
-        if (superClasses.contains(class2)) {
-            return class2;
+        if (superClasses.contains(openClass2)) {
+            return openClass2;
         }
-        if (superClasses.contains(JavaOpenClass.getOpenClass(class2.getInstanceClass()))) {
-            return JavaOpenClass.getOpenClass(class2.getInstanceClass());
+        if (superClasses.contains(JavaOpenClass.getOpenClass(openClass2.getInstanceClass()))) {
+            return JavaOpenClass.getOpenClass(openClass2.getInstanceClass());
         }
-        openClass = class2;
+        openClass = openClass2;
         while (openClass != null && !JavaOpenClass.OBJECT.equals(openClass)) {
             IOpenClass next = null;
             for (IOpenClass x : openClass.superClasses()) {
                 if (!x.isInterface()) {
-                    if (superClasses.contains(x)) {
+                    if (!JavaOpenClass.OBJECT.equals(x) && superClasses.contains(x)) {
                         return x;
                     }
                     next = x;
@@ -304,6 +365,7 @@ public class CastFactory implements ICastFactory {
                 oc.superClasses()
                     .stream()
                     .filter(IOpenClass::isInterface)
+                    .filter(isNotIgnorableInParentSearch)
                     .filter(e -> !interfaces.contains(e))
                     .forEach(e -> {
                         interfaces.add(e);
@@ -313,10 +375,14 @@ public class CastFactory implements ICastFactory {
             queue = new ArrayDeque<>(queue1);
         }
         queue = new ArrayDeque<>();
-        if (class2.isInterface()) {
-            queue.add(class2);
+        if (openClass2.isInterface()) {
+            queue.add(openClass2);
         }
-        class2.superClasses().stream().filter(IOpenClass::isInterface).forEach(queue::add);
+        openClass2.superClasses()
+            .stream()
+            .filter(IOpenClass::isInterface)
+            .filter(isNotIgnorableInParentSearch)
+            .forEach(queue::add);
         while (!queue.isEmpty()) {
             Set<IOpenClass> queue1 = new LinkedHashSet<>();
             for (IOpenClass oc : queue) {
@@ -326,6 +392,7 @@ public class CastFactory implements ICastFactory {
                 oc.superClasses()
                     .stream()
                     .filter(IOpenClass::isInterface)
+                    .filter(isNotIgnorableInParentSearch)
                     .filter(e -> !interfaces.contains(e))
                     .forEach(queue1::add);
             }

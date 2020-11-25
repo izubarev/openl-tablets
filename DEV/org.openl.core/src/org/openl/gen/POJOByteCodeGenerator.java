@@ -36,7 +36,6 @@ import org.openl.util.JAXBUtils;
  * @author Yury Molchan, Marat Kamalov
  */
 public class POJOByteCodeGenerator {
-
     public final static TypeDescription OBJECT_TYPE_DESCRIPTION = new TypeDescription(Object.class.getName());
 
     private final String beanNameWithPackage;
@@ -63,9 +62,9 @@ public class POJOByteCodeGenerator {
             boolean equalsHashCodeToStringMethods,
             boolean publicFields) {
 
-        this.fields = beanFields != null ? new LinkedHashMap<>(beanFields) : Collections.emptyMap();
+        this.fields = beanFields != null ? beanFields : Collections.emptyMap();
         this.parentType = parentType;
-        this.parentFields = parentFields != null ? new LinkedHashMap<>(parentFields) : Collections.emptyMap();
+        this.parentFields = parentFields != null ? parentFields : Collections.emptyMap();
         this.beanNameWithPackage = beanName.replace('.', '/');
         this.publicFields = publicFields;
         this.typeWriters = typeWriters != null ? new LinkedHashSet<>(typeWriters) : Collections.emptySet();

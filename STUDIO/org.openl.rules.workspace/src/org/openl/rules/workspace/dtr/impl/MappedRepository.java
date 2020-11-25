@@ -135,9 +135,7 @@ public class MappedRepository implements FolderRepository, BranchRepository, RRe
                     .stream()
                     .filter(p -> name.equals(baseFolder + getMappedName(p)))
                     .findFirst();
-            if (project.isPresent() && project.get().isArchived()) {
-                check.setDeleted(true);
-            }
+            check.setDeleted(project.isPresent() && project.get().isArchived());
         }
         return toExternal(mapping, check);
     }
@@ -151,14 +149,7 @@ public class MappedRepository implements FolderRepository, BranchRepository, RRe
     @Override
     public FileData save(FileData data, InputStream stream) throws IOException {
         ProjectIndex mapping = getUpToDateMapping(true);
-        try {
-            return toExternal(mapping, delegate.save(toInternal(mapping, data), stream));
-        } catch (MergeConflictException e) {
-            throw new MergeConflictException(toExternalKeys(mapping, e.getDiffs()),
-                    e.getBaseCommit(),
-                    e.getYourCommit(),
-                    e.getTheirCommit());
-        }
+        return toExternal(mapping, delegate.save(toInternal(mapping, data), stream));
     }
 
     @Override
@@ -306,9 +297,7 @@ public class MappedRepository implements FolderRepository, BranchRepository, RRe
                     log.debug("Project {} is not found.", project.getPath());
                 } else {
                     if (delegate.supports().versions()) {
-                        if (project.isArchived()) {
-                            data.setDeleted(true);
-                        }
+                        data.setDeleted(project.isArchived());
                     }
                     internal.add(data);
                 }
@@ -334,16 +323,8 @@ public class MappedRepository implements FolderRepository, BranchRepository, RRe
         } else {
             mapping = getUpToDateMapping(true);
         }
-        try {
-            return toExternal(mapping,
-                    delegate.save(toInternal(mapping, folderData), toInternal(mapping, folderData, files), changesetType));
-        } catch (MergeConflictException e) {
-            throw new MergeConflictException(toExternalKeys(mapping, e.getDiffs()),
-                    e.getBaseCommit(),
-                    e.getYourCommit(),
-                    e.getTheirCommit());
-
-        }
+        return toExternal(mapping,
+                delegate.save(toInternal(mapping, folderData), toInternal(mapping, folderData, files), changesetType));
     }
 
     @Override
@@ -650,17 +631,14 @@ public class MappedRepository implements FolderRepository, BranchRepository, RRe
         String name = toExternal(externalToInternal, data.getName());
         data.addAdditionalData(new FileMappingData(name, data.getName()));
         data.setName(name);
+
+        Optional<ProjectInfo> project = externalToInternal.getProjects()
+            .stream()
+            .filter(p -> name.equals(baseFolder + getMappedName(p)))
+            .findFirst();
+        data.setDeleted(project.isPresent() && project.get().isArchived());
+
         return data;
-    }
-
-    private Map<String, String> toExternalKeys(ProjectIndex externalToInternal, Map<String, String> internal) {
-        Map<String, String> external = new LinkedHashMap<>(internal.size());
-
-        for (Map.Entry<String, String> entry : internal.entrySet()) {
-            external.put(toExternal(externalToInternal, entry.getKey()), entry.getValue());
-        }
-
-        return external;
     }
 
     private String toExternal(ProjectIndex externalToInternal, String internalPath) {
@@ -1040,9 +1018,16 @@ public class MappedRepository implements FolderRepository, BranchRepository, RRe
         }
         Optional<ProjectInfo> projectInfo = mapping.getProjects()
                 .stream()
-                .filter(p -> p.getPath().equals(internalPath))
+                .filter(p -> internalPath.equals(p.getPath()) || internalPath.startsWith(p.getPath() + "/"))
                 .findFirst();
-        return projectInfo.map(p -> baseFolder + getMappedName(p)).orElse(null);
+        return projectInfo.map(p -> {
+            String mappedProjectName = baseFolder + getMappedName(p);
+            if (internalPath.equals(p.getPath())) {
+                return mappedProjectName;
+            } else {
+                return mappedProjectName + internalPath.substring(p.getPath().length());
+            }
+        }).orElse(null);
     }
 
     private String getHash(String s) {

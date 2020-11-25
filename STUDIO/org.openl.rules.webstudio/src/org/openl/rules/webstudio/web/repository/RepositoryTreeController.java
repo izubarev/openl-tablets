@@ -65,8 +65,6 @@ import org.openl.rules.repository.api.MergeConflictException;
 import org.openl.rules.repository.api.Repository;
 import org.openl.rules.rest.ProjectHistoryService;
 import org.openl.rules.ui.WebStudio;
-import org.openl.rules.webstudio.filter.IFilter;
-import org.openl.rules.webstudio.filter.RepositoryFileExtensionFilter;
 import org.openl.rules.webstudio.util.ExportFile;
 import org.openl.rules.webstudio.util.NameChecker;
 import org.openl.rules.webstudio.web.admin.FolderStructureValidators;
@@ -88,7 +86,7 @@ import org.openl.rules.webstudio.web.repository.upload.ProjectUploader;
 import org.openl.rules.webstudio.web.repository.upload.ZipProjectDescriptorExtractor;
 import org.openl.rules.webstudio.web.repository.upload.zip.ZipCharsetDetector;
 import org.openl.rules.webstudio.web.repository.upload.zip.ZipFromProjectFile;
-import org.openl.rules.webstudio.web.util.OpenAPIEditorUtils;
+import org.openl.rules.webstudio.web.util.OpenAPIEditorService;
 import org.openl.rules.webstudio.web.util.Utils;
 import org.openl.rules.webstudio.web.util.WebStudioUtils;
 import org.openl.rules.workspace.MultiUserWorkspaceManager;
@@ -126,6 +124,8 @@ public class RepositoryTreeController {
     private static final String CUSTOM_TEMPLATE_TYPE = "custom";
     private static final String OPENED_OTHER_PROJECT = "WebStudio can't open two projects with the same name. Please close another project and open it again.";
     private static final String NONE_REPO = "none";
+    public static final String OPENAPI_DEFAULT_DATA_MODULE_PATH = "openapi.default.data.module.path";
+    public static final String OPENAPI_DEFAULT_ALGORITHM_MODULE_PATH = "openapi.default.algorithm.module.path";
 
     private final Logger log = LoggerFactory.getLogger(RepositoryTreeController.class);
 
@@ -171,6 +171,9 @@ public class RepositoryTreeController {
     @Autowired
     private LocalUploadController localUploadController;
 
+    @Autowired
+    private OpenAPIEditorService openAPIEditorService;
+
     private String repositoryId;
     private String projectName;
     private String projectFolder = "";
@@ -198,8 +201,8 @@ public class RepositoryTreeController {
     private String eraseProjectComment;
     private boolean eraseFromRepository;
 
-    private String modelsModuleName = "Models";
-    private String algorithmsModuleName = "Algorithms";
+    private String modelsModuleName;
+    private String algorithmsModuleName;
     private String modelsPath;
     private String algorithmsPath;
     private boolean editModelsPath = false;
@@ -654,9 +657,7 @@ public class RepositoryTreeController {
                 msg = "Project name must not be empty.";
             } else if (!NameChecker.checkName(projectName)) {
                 msg = "Specified name is not a valid project name." + " " + NameChecker.BAD_NAME_MSG;
-            } else if (userWorkspace.getDesignTimeRepository().hasProject(repositoryId, projectName) || userWorkspace
-                .getLocalWorkspace()
-                .hasProject(null, projectName)) {
+            } else if (userWorkspace.getDesignTimeRepository().hasProject(repositoryId, projectName)) {
                 msg = "Cannot create project because project with such name already exists.";
             } else {
                 Repository repository = userWorkspace.getDesignTimeRepository().getRepository(repositoryId);
@@ -825,11 +826,11 @@ public class RepositoryTreeController {
             final FileData fileData = aProjectArtefact.getFileData();
             if (openAPI != null) {
                 final String algorithmModuleName = openAPI.getAlgorithmModuleName();
-                final String modelsModuleName = openAPI.getModelModuleName();
+                final String projectModelsModuleName = openAPI.getModelModuleName();
                 if (removedModuleNames.contains(algorithmModuleName)) {
                     openAPI.setAlgorithmModuleName(null);
                 }
-                if (removedModuleNames.contains(modelsModuleName)) {
+                if (removedModuleNames.contains(projectModelsModuleName)) {
                     openAPI.setModelModuleName(null);
                 }
                 if (fileData != null) {
@@ -1535,7 +1536,13 @@ public class RepositoryTreeController {
     public String openProjectVersion() {
         try {
             UserWorkspaceProject repositoryProject = repositoryTreeState.getSelectedProject();
-            if (userWorkspace.isOpenedOtherProject(repositoryProject)) {
+            boolean openedSimilarToHistoric = false;
+            if (repositoryProject instanceof RulesProject) {
+                RulesProject project = (RulesProject) repositoryProject;
+                AProject historic = new AProject(project.getDesignRepository(), project.getDesignFolderName(), version);
+                openedSimilarToHistoric = userWorkspace.isOpenedOtherProject(historic);
+            }
+            if (userWorkspace.isOpenedOtherProject(repositoryProject) || openedSimilarToHistoric) {
                 WebStudioUtils.addErrorMessage(OPENED_OTHER_PROJECT);
                 // To avoid unnecessary request for the version when it's not needed (from
                 // getHasDependenciesForVersion())
@@ -1825,7 +1832,7 @@ public class RepositoryTreeController {
         String errorMessage = uploadProject();
         if (errorMessage == null) {
             try {
-                AProject createdProject = userWorkspace.getProject(repositoryId, projectName);
+                RulesProject createdProject = userWorkspace.getProject(repositoryId, projectName);
                 repositoryTreeState.addRulesProjectToTree(createdProject);
                 selectProject(createdProject.getName(), repositoryTreeState.getRulesRepository());
                 resetStudioModel();
@@ -1870,7 +1877,7 @@ public class RepositoryTreeController {
                 WebStudioUtils.addErrorMessage(errorMessage);
             } else {
                 try {
-                    AProject createdProject = userWorkspace.getProject(repositoryId, projectName);
+                    RulesProject createdProject = userWorkspace.getProject(repositoryId, projectName);
                     repositoryTreeState.addRulesProjectToTree(createdProject);
                     selectProject(createdProject.getName(), repositoryTreeState.getRulesRepository());
                     resetStudioModel();
@@ -1995,6 +2002,11 @@ public class RepositoryTreeController {
         return null;
     }
 
+    enum OpenAPIModule {
+        MODEL,
+        ALGORITHM
+    }
+
     private String uploadProject() {
         String errorMessage;
 
@@ -2007,8 +2019,8 @@ public class RepositoryTreeController {
                 } else {
                     comment = getDesignRepoComments().createProject(projectName);
                 }
-                String pathForModels = extractPath(modelsModuleName, editModelsPath, modelsPath);
-                String pathForAlgorithms = extractPath(algorithmsModuleName, editAlgorithmsPath, algorithmsPath);
+                String pathForModels = extractPath(editModelsPath, modelsPath, OpenAPIModule.MODEL);
+                String pathForAlgorithms = extractPath(editAlgorithmsPath, algorithmsPath, OpenAPIModule.ALGORITHM);
                 ProjectUploader projectUploader = new ProjectUploader(repositoryId,
                     uploadedItem,
                     projectName,
@@ -2055,6 +2067,7 @@ public class RepositoryTreeController {
 
         if (errorMessage == null) {
             clearUploadedFiles();
+            clearOpenAPIFields();
         } else {
             WebStudioUtils.addErrorMessage(errorMessage);
         }
@@ -2062,10 +2075,22 @@ public class RepositoryTreeController {
         return errorMessage;
     }
 
-    private String extractPath(String moduleName, boolean editorWasEnabled, String current) {
+    private String extractPath(boolean editorWasEnabled, String current, OpenAPIModule moduleType) {
         String pathForModels;
-        if (StringUtils.isNotBlank(moduleName) && !editorWasEnabled) {
-            pathForModels = OpenAPIEditorUtils.generatePath(moduleName);
+        if (!editorWasEnabled) {
+            if (moduleType == OpenAPIModule.MODEL) {
+                if (StringUtils.isNotBlank(modelsModuleName)) {
+                    pathForModels = openAPIEditorService.generatePath(modelsModuleName);
+                } else {
+                    pathForModels = propertyResolver.getProperty(OPENAPI_DEFAULT_DATA_MODULE_PATH);
+                }
+            } else {
+                if (StringUtils.isNotBlank(algorithmsModuleName)) {
+                    pathForModels = openAPIEditorService.generatePath(algorithmsModuleName);
+                } else {
+                    pathForModels = propertyResolver.getProperty(OPENAPI_DEFAULT_ALGORITHM_MODULE_PATH);
+                }
+            }
         } else {
             pathForModels = current;
         }
@@ -2077,6 +2102,15 @@ public class RepositoryTreeController {
             uploadedFile.destroy();
         }
         uploadedFiles.clear();
+    }
+
+    public void clearOpenAPIFields() {
+        setEditModelsPath(false);
+        setEditAlgorithmsPath(false);
+        setAlgorithmsModuleName(propertyResolver.getProperty("openapi.default.algorithm.module.name"));
+        setModelsModuleName(propertyResolver.getProperty("openapi.default.data.module.name"));
+        setAlgorithmsPath(propertyResolver.getProperty(OPENAPI_DEFAULT_ALGORITHM_MODULE_PATH));
+        setModelsPath(propertyResolver.getProperty(OPENAPI_DEFAULT_DATA_MODULE_PATH));
     }
 
     public String getNewProjectTemplate() {
@@ -2247,6 +2281,8 @@ public class RepositoryTreeController {
                 selectedProject.releaseMyLock();
             }
 
+            String businessNameBeforeSwitch = selectedProject.getBusinessName();
+
             selectedProject.setBranch(branch);
             if (selectedProject.getLastHistoryVersion() == null) {
                 // move back to previous branch! Because the project is not present in new branch
@@ -2261,7 +2297,7 @@ public class RepositoryTreeController {
                     selectedProject.close();
                 } else {
                     // Update files
-                    ProjectHistoryService.deleteHistory(selectedProject.getBusinessName());
+                    ProjectHistoryService.deleteHistory(businessNameBeforeSwitch);
                     if (!userWorkspace.isOpenedOtherProject(selectedProject)) {
                         selectedProject.open();
                     }
@@ -2566,16 +2602,18 @@ public class RepositoryTreeController {
         return msg;
     }
 
-    public void enableModelsFilePathInput() {
-        setEditModelsPath(true);
-        setModelsPath(OpenAPIEditorUtils.generatePath(modelsModuleName));
-        setAlgorithmsPath(OpenAPIEditorUtils.generatePath(algorithmsModuleName));
+    public void changeModelsFilePathInputState() {
+        setEditModelsPath(!editModelsPath);
+        setModelsPath(editModelsPath ? openAPIEditorService.generatePath(modelsModuleName)
+                                     : propertyResolver.getProperty(OPENAPI_DEFAULT_DATA_MODULE_PATH));
+        setAlgorithmsPath(openAPIEditorService.generatePath(algorithmsModuleName));
     }
 
-    public void enableAlgorithmsFilePathInput() {
-        setEditAlgorithmsPath(true);
-        setAlgorithmsPath(OpenAPIEditorUtils.generatePath(algorithmsModuleName));
-        setModelsPath(OpenAPIEditorUtils.generatePath(modelsModuleName));
+    public void changeAlgorithmsFilePathInputState() {
+        setEditAlgorithmsPath(!editAlgorithmsPath);
+        setAlgorithmsPath(editAlgorithmsPath ? openAPIEditorService.generatePath(algorithmsModuleName)
+                                             : propertyResolver.getProperty(OPENAPI_DEFAULT_ALGORITHM_MODULE_PATH));
+        setModelsPath(openAPIEditorService.generatePath(modelsModuleName));
     }
 
     public boolean getEraseFromRepository() {
@@ -2603,7 +2641,7 @@ public class RepositoryTreeController {
     }
 
     public String getModelsPath() {
-        return OpenAPIEditorUtils.generatePath(modelsModuleName);
+        return openAPIEditorService.generatePath(modelsModuleName);
     }
 
     public void setModelsPath(String modelsPath) {
@@ -2611,7 +2649,7 @@ public class RepositoryTreeController {
     }
 
     public String getAlgorithmsPath() {
-        return OpenAPIEditorUtils.generatePath(algorithmsModuleName);
+        return openAPIEditorService.generatePath(algorithmsModuleName);
     }
 
     public void setAlgorithmsPath(String algorithmsPath) {
@@ -2635,7 +2673,9 @@ public class RepositoryTreeController {
     }
 
     public boolean isMergedIntoMain(UserWorkspaceProject project) {
-        if (project == null || !project.getDesignRepository().supports().branches()) {
+        if (project == null || project.getDesignRepository() == null || !project.getDesignRepository()
+            .supports()
+            .branches()) {
             return false;
         }
 
@@ -2649,9 +2689,29 @@ public class RepositoryTreeController {
     }
 
     public String getMainBranch(UserWorkspaceProject project) {
-        if (project == null || !project.getDesignRepository().supports().branches()) {
+        if (project == null || project.getDesignRepository() == null || !project.getDesignRepository()
+            .supports()
+            .branches()) {
             return null;
         }
         return ((BranchRepository) project.getDesignRepository()).getBaseBranch();
+    }
+
+    public void checkBranchIsDeletable() {
+        UserWorkspaceProject project = getSelectedProject();
+        String message = "Branch can't be deleted: ";
+
+        if (project == null) {
+            WebStudioUtils.addErrorMessage(message + " project for the branch is absent.");
+        } else if (project.isLocalOnly()) {
+            WebStudioUtils.addErrorMessage(message + " project for the branch is local.");
+        } else if (project.isDeleted()) {
+            WebStudioUtils.addErrorMessage(message + " project for the branch is archived.");
+        }
+    }
+
+    public boolean isBranchDeletable() {
+        UserWorkspaceProject project = getSelectedProject();
+        return project != null && !project.isLocalOnly() && !project.isDeleted();
     }
 }

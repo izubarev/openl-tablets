@@ -18,6 +18,7 @@ import org.openl.rules.model.scaffolding.SpreadsheetModel;
 import org.openl.rules.model.scaffolding.data.DataModel;
 import org.openl.rules.openapi.OpenAPIModelConverter;
 import org.openl.rules.openapi.impl.OpenAPIScaffoldingConverter;
+import org.openl.util.CollectionUtils;
 
 public class DataTableTest {
 
@@ -28,25 +29,26 @@ public class DataTableTest {
             .extractProjectModel("test.converter/data_tables/EPBDS-10250_data_tables.json");
         List<DataModel> dataModels = projectModel.getDataModels();
         assertFalse(dataModels.isEmpty());
-        DataModel petsB = dataModels.iterator().next();
-        assertEquals("petsB", petsB.getName());
+        Optional<DataModel> optionalPetsB = dataModels.stream().filter(x -> x.getName().equals("PetsB")).findFirst();
+        assertTrue(optionalPetsB.isPresent());
+        DataModel petsB = optionalPetsB.get();
+        assertEquals("PetsB", petsB.getName());
         assertEquals("Pet", petsB.getType());
         PathInfo info = petsB.getInfo();
-        assertEquals("/petsB", info.getOriginalPath());
-        assertEquals("petsB", info.getFormattedPath());
+        assertEquals("/getpetsB", info.getOriginalPath());
+        assertEquals("getpetsB", info.getFormattedPath());
         assertEquals("application/json", info.getProduces());
         assertNull(info.getConsumes());
         assertEquals("Object", info.getReturnType());
 
         DatatypeModel datatypeModel = petsB.getDatatypeModel();
-        assertEquals("NewPet", datatypeModel.getParent());
         assertEquals("Pet", datatypeModel.getName());
         List<FieldModel> fields = datatypeModel.getFields();
         assertFalse(fields.isEmpty());
-        FieldModel fm = fields.iterator().next();
-        assertEquals("id", fm.getName());
-        assertEquals("Long", fm.getType());
-        assertNull(fm.getDefaultValue());
+        assertTrue(fields.stream().anyMatch(x -> x.getName().equals("tag")));
+        assertTrue(fields.stream().anyMatch(x -> x.getName().equals("id")));
+        assertTrue(fields.stream().anyMatch(x -> x.getName().equals("name")));
+
     }
 
     @Test
@@ -56,41 +58,100 @@ public class DataTableTest {
         List<SpreadsheetModel> spreadsheetResultModels = pm.getSpreadsheetResultModels();
         List<DataModel> dataModels = pm.getDataModels();
         List<DatatypeModel> datatypeModels = pm.getDatatypeModels();
-        assertEquals(5, spreadsheetResultModels.size());
-        assertEquals(2, dataModels.size());
+        assertEquals(8, spreadsheetResultModels.size());
+        assertTrue(CollectionUtils.isEmpty(dataModels));
         assertEquals(14, datatypeModels.size());
+    }
 
-        Optional<DataModel> childDatatype1DataTableOptional = dataModels.stream()
-            .filter(x -> x.getName().equals("childDatatype1"))
-            .findFirst();
-        assertTrue(childDatatype1DataTableOptional.isPresent());
-        DataModel childDatatype1Model = childDatatype1DataTableOptional.get();
-        assertEquals("childDatatype1", childDatatype1Model.getType());
-        PathInfo info = childDatatype1Model.getInfo();
-        assertEquals("/childDatatype1", info.getOriginalPath());
-        assertEquals("childDatatype1", info.getFormattedPath());
-        assertEquals("application/json", info.getProduces());
-        assertEquals("GET", info.getOperation());
-        DatatypeModel datatypeModel = childDatatype1Model.getDatatypeModel();
-        assertEquals("childDatatype1", datatypeModel.getName());
-        assertEquals("parentDatatype1", datatypeModel.getParent());
-        assertTrue(datatypeModel.getFields().isEmpty());
+    @Test
+    public void testRuleWithRuntimeContext() throws IOException {
+        OpenAPIModelConverter converter = new OpenAPIScaffoldingConverter();
+        ProjectModel pm = converter
+            .extractProjectModel("test.converter/data_tables/openapiRule_with_runtimeContext.json");
+        assertTrue(CollectionUtils.isEmpty(pm.getDataModels()));
+    }
 
-        Optional<DataModel> childDatatype2DataTableOptional = dataModels.stream()
-            .filter(x -> x.getName().equals("childDatatype2"))
+    @Test
+    public void testRuleWithoutRuntimeContext() throws IOException {
+        OpenAPIModelConverter converter = new OpenAPIScaffoldingConverter();
+        ProjectModel pm = converter
+            .extractProjectModel("test.converter/data_tables/openapiRule_without_runtimeContext.json");
+        assertTrue(CollectionUtils.isEmpty(pm.getDataModels()));
+    }
+
+    @Test
+    public void testNesting() throws IOException {
+        OpenAPIModelConverter converter = new OpenAPIScaffoldingConverter();
+        ProjectModel pm = converter.extractProjectModel("test.converter/data_tables/nesting.json");
+        List<DataModel> dataModels = pm.getDataModels();
+        assertEquals(4, dataModels.size());
+
+        Optional<DataModel> newDatatypeDataOptional = dataModels.stream()
+            .filter(x -> x.getName().equals("NewDatatypeData"))
             .findFirst();
-        assertTrue(childDatatype2DataTableOptional.isPresent());
-        DataModel childDatatype2Model = childDatatype2DataTableOptional.get();
-        assertEquals("childDatatype2", childDatatype2Model.getType());
-        PathInfo childDatatype2ModelInfo = childDatatype2Model.getInfo();
-        assertEquals("/childDatatype2", childDatatype2ModelInfo.getOriginalPath());
-        assertEquals("childDatatype2", childDatatype2ModelInfo.getFormattedPath());
-        assertEquals("application/json", childDatatype2ModelInfo.getProduces());
-        assertEquals("GET", childDatatype2ModelInfo.getOperation());
-        DatatypeModel datatype2Model = childDatatype2Model.getDatatypeModel();
-        assertEquals("childDatatype2", datatype2Model.getName());
-        assertEquals("parentDatatype1", datatype2Model.getParent());
-        assertEquals(1, datatype2Model.getFields().size());
+        assertTrue(newDatatypeDataOptional.isPresent());
+        DataModel newDataTypeData = newDatatypeDataOptional.get();
+        List<FieldModel> fields = newDataTypeData.getDatatypeModel().getFields();
+        assertEquals(2, fields.size());
+        assertTrue(fields.stream().anyMatch(x -> x.getName().equals("dtpField")));
+        assertTrue(fields.stream().anyMatch(x -> x.getName().equals("newStrField")));
+
+        Optional<DataModel> myStrOptional = dataModels.stream()
+            .filter(x -> x.getName().equals("MystrData"))
+            .findFirst();
+        assertTrue(myStrOptional.isPresent());
+        DataModel myStrModel = myStrOptional.get();
+        List<FieldModel> strFields = myStrModel.getDatatypeModel().getFields();
+        assertEquals(1, strFields.size());
+        FieldModel strModel = strFields.iterator().next();
+        assertEquals("this", strModel.getName());
+
+        Optional<DataModel> superDatatypeOptional = dataModels.stream()
+            .filter(x -> x.getName().equals("SuperDatatypeData"))
+            .findFirst();
+        assertTrue(superDatatypeOptional.isPresent());
+        DataModel superDataModel = superDatatypeOptional.get();
+        List<FieldModel> superFields = superDataModel.getDatatypeModel().getFields();
+        assertEquals(2, superFields.size());
+        assertTrue(superFields.stream().anyMatch(x -> x.getName().equals("dtpField")));
+        assertTrue(superFields.stream().anyMatch(x -> x.getName().equals("newStrField")));
+
+        Optional<DataModel> myDatatypeDataOptional = dataModels.stream()
+            .filter(x -> x.getName().equals("MyDatatypeData"))
+            .findFirst();
+        assertTrue(myDatatypeDataOptional.isPresent());
+        DataModel dataModel = myDatatypeDataOptional.get();
+        List<FieldModel> myDatatypeFields = dataModel.getDatatypeModel().getFields();
+        assertEquals(3, myDatatypeFields.size());
+        assertTrue(myDatatypeFields.stream().anyMatch(x -> x.getName().equals("dtpField")));
+        assertTrue(myDatatypeFields.stream().anyMatch(x -> x.getName().equals("newStrField")));
+        assertTrue(myDatatypeFields.stream().anyMatch(x -> x.getName().equals("r")));
+    }
+
+    @Test
+    public void testMultipleNesting() throws IOException {
+        OpenAPIModelConverter converter = new OpenAPIScaffoldingConverter();
+        ProjectModel pm = converter.extractProjectModel("test.converter/data_tables/multiple_nesting.json");
+        List<DataModel> dataModels = pm.getDataModels();
+        assertEquals(2, dataModels.size());
+        Optional<DataModel> dataLevelForeData = dataModels.stream().filter(x -> x.getName().equals("DalaLevelForeData")).findFirst();
+        assertTrue(dataLevelForeData.isPresent());
+        DataModel dataLevelFore = dataLevelForeData.get();
+        List<FieldModel> fields = dataLevelFore.getDatatypeModel().getFields();
+        assertEquals(4, fields.size());
+        assertTrue(fields.stream().anyMatch(x->x.getName().equals("newField")));
+        assertTrue(fields.stream().anyMatch(x->x.getName().equals("filed1")));
+        assertTrue(fields.stream().anyMatch(x->x.getName().equals("filed2")));
+        assertTrue(fields.stream().anyMatch(x->x.getName().equals("filed4")));
+
+        Optional<DataModel> dataLevelThreeData = dataModels.stream().filter(x -> x.getName().equals("Arlekino")).findFirst();
+        assertTrue(dataLevelThreeData.isPresent());
+        DataModel dataLevelThree = dataLevelThreeData.get();
+        List<FieldModel> dltFields = dataLevelThree.getDatatypeModel().getFields();
+        assertEquals(3, dltFields.size());
+        assertTrue(dltFields.stream().anyMatch(x->x.getName().equals("newField")));
+        assertTrue(dltFields.stream().anyMatch(x->x.getName().equals("filed1")));
+        assertTrue(dltFields.stream().anyMatch(x->x.getName().equals("filed2")));
 
     }
 }

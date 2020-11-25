@@ -193,27 +193,34 @@ public class OpenAPIScaffoldingConverter implements OpenAPIModelConverter {
 
     private List<DataModel> extractDataModels(List<SpreadsheetModel> spreadsheetModels, OpenAPI openAPI) {
         List<SpreadsheetModel> potentialDataModels = spreadsheetModels.stream()
-            .filter(x -> CollectionUtils.isEmpty(x.getParameters()) || containsOnlyRuntimeContext(x.getParameters()))
+            .filter(x -> x.getPathInfo()
+                .getFormattedPath()
+                .toLowerCase()
+                .startsWith("get") && (CollectionUtils
+                    .isEmpty(x.getParameters()) || containsOnlyRuntimeContext(x.getParameters())))
             .collect(Collectors.toList());
         List<DataModel> dataModels = new ArrayList<>();
         for (SpreadsheetModel potentialDataModel : potentialDataModels) {
             String originalType = potentialDataModel.getType();
             String type = ARRAY_MATCHER.matcher(originalType).replaceAll("");
-            if (!originalType.endsWith("[]") && !OpenAPITypeUtils.isCustomType(type)) {
+            if (!originalType.endsWith("[]") || type.equals(SPREADSHEET_RESULT)) {
                 continue;
             }
             String operationMethod = potentialDataModel.getPathInfo().getOperation();
             // if get operation without parameters or post with only runtime context
             List<InputParameter> parameters = potentialDataModel.getParameters();
             boolean parametersNotEmpty = CollectionUtils.isNotEmpty(parameters);
-            if (parameters.isEmpty() && operationMethod.equals(PathItem.HttpMethod.GET
-                .name()) || parametersNotEmpty && operationMethod.equals(PathItem.HttpMethod.POST.name())) {
+            boolean getAndNoParams = parameters.isEmpty() && operationMethod.equals(PathItem.HttpMethod.GET.name());
+            boolean postAndRuntimeContext = parametersNotEmpty && operationMethod
+                .equals(PathItem.HttpMethod.POST.name());
+            if (getAndNoParams || postAndRuntimeContext) {
                 spreadsheetModels.remove(potentialDataModel);
                 String dataTableName = formatTableName(potentialDataModel.getName());
                 dataModels.add(new DataModel(dataTableName,
                     type,
                     potentialDataModel.getPathInfo(),
-                    createModel(openAPI, type, getSchemas(openAPI).get(type))));
+                    isSimpleType(type) ? createSimpleModel(type)
+                                       : createModelForDataTable(openAPI, type, getSchemas(openAPI).get(type))));
             }
         }
         return dataModels;
@@ -409,7 +416,8 @@ public class OpenAPIScaffoldingConverter implements OpenAPIModelConverter {
         PathInfo pathInfo = generatePathInfo(path, pathItem);
         spr.setPathInfo(pathInfo);
         Schema<?> responseSchema = OpenLOpenAPIUtils.getUsedSchemaInResponse(jxPathContext, pathItem);
-        String usedSchemaInResponse = OpenAPITypeUtils.extractType(responseSchema);
+        String usedSchemaInResponse = OpenAPITypeUtils.extractType(responseSchema,
+            TEXT_PLAIN.equals(pathInfo.getProduces()));
         pathInfo.setReturnType(extractReturnType(pathType, usedSchemaInResponse));
         boolean isChild = childSet.contains(usedSchemaInResponse);
         List<InputParameter> parameters = OpenLOpenAPIUtils
@@ -578,14 +586,44 @@ public class OpenAPIScaffoldingConverter implements OpenAPIModelConverter {
         return result;
     }
 
+    private DatatypeModel createSimpleModel(String type) {
+        DatatypeModel dm = new DatatypeModel("");
+        dm.setFields(Collections.singletonList(new FieldModel("this", type)));
+        return dm;
+    }
+
     private DatatypeModel createModel(OpenAPI openAPI, String schemaName, Schema<?> schema) {
         DatatypeModel dm = new DatatypeModel(normalizeName(schemaName));
         Map<String, Schema> properties;
         List<FieldModel> fields = new ArrayList<>();
         if (schema instanceof ComposedSchema) {
-            String parentName = OpenAPITypeUtils.getParentName((ComposedSchema) schema, openAPI);
-            properties = OpenAPITypeUtils.getFieldsOfChild((ComposedSchema) schema);
+            ComposedSchema composedSchema = (ComposedSchema) schema;
+            String parentName = OpenAPITypeUtils.getParentName(composedSchema, openAPI);
+            properties = OpenAPITypeUtils.getFieldsOfChild(composedSchema);
+            if (composedSchema.getProperties() != null) {
+                composedSchema.getProperties().forEach(properties::putIfAbsent);
+            }
             dm.setParent(parentName);
+        } else {
+            properties = schema.getProperties();
+        }
+        if (properties != null) {
+            fields = properties.entrySet()
+                .stream()
+                .filter(property -> !IGNORED_FIELDS.contains(property.getKey()))
+                .map(this::extractField)
+                .collect(Collectors.toList());
+        }
+        dm.setFields(fields);
+        return dm;
+    }
+
+    private DatatypeModel createModelForDataTable(OpenAPI openAPI, String schemaName, Schema<?> schema) {
+        DatatypeModel dm = new DatatypeModel(normalizeName(schemaName));
+        Map<String, Schema> properties;
+        List<FieldModel> fields = new ArrayList<>();
+        if (schema instanceof ComposedSchema) {
+            properties = OpenAPITypeUtils.getAllProperties((ComposedSchema) schema, openAPI);
         } else {
             properties = schema.getProperties();
         }
@@ -604,7 +642,7 @@ public class OpenAPIScaffoldingConverter implements OpenAPIModelConverter {
         String propertyName = property.getKey();
         Schema<?> valueSchema = property.getValue();
 
-        String typeModel = OpenAPITypeUtils.extractType(valueSchema);
+        String typeModel = OpenAPITypeUtils.extractType(valueSchema, false);
         Object defaultValue;
         if ((valueSchema instanceof IntegerSchema) && valueSchema.getFormat() == null) {
             if (valueSchema.getDefault() == null) {
@@ -625,7 +663,7 @@ public class OpenAPIScaffoldingConverter implements OpenAPIModelConverter {
     private StepModel extractStep(Map.Entry<String, Schema> property) {
         String propertyName = property.getKey();
         Schema<?> valueSchema = property.getValue();
-        String typeModel = OpenAPITypeUtils.extractType(valueSchema);
+        String typeModel = OpenAPITypeUtils.extractType(valueSchema, false);
         String value = makeValue(typeModel);
         return new StepModel(normalizeName(propertyName), typeModel, value);
     }

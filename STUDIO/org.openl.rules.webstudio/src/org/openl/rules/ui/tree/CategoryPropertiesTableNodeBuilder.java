@@ -18,23 +18,11 @@ import org.openl.util.StringUtils;
 public class CategoryPropertiesTableNodeBuilder extends BaseTableTreeNodeBuilder {
 
     private static final String FOLDER_NAME = "Category Properties";
-    private static final String CATEGORY_PROPERTIES_TABLE = "Category Properties Table";
 
     @Override
     public String[] getDisplayValue(Object nodeObject, int i) {
         TableSyntaxNode tableSyntaxNode = (TableSyntaxNode) nodeObject;
         return TableSyntaxNodeUtils.getTableDisplayValue(tableSyntaxNode, i, WebStudioFormats.getInstance());
-    }
-
-    @Override
-    public String getName() {
-        return CATEGORY_PROPERTIES_TABLE;
-    }
-
-    @Override
-    public Object getProblems(Object nodeObject) {
-        TableSyntaxNode tsn = (TableSyntaxNode) nodeObject;
-        return tsn.getErrors() != null ? tsn.getErrors() : tsn.getValidationResult();
     }
 
     @Override
@@ -46,16 +34,6 @@ public class CategoryPropertiesTableNodeBuilder extends BaseTableTreeNodeBuilder
     public String getUrl(Object nodeObject) {
         TableSyntaxNode tableSyntaxNode = (TableSyntaxNode) nodeObject;
         return tableSyntaxNode.getUri();
-    }
-
-    @Override
-    public int getWeight(Object nodeObject) {
-        return 0;
-    }
-
-    @Override
-    protected Object makeObject(TableSyntaxNode tableSyntaxNode) {
-        return tableSyntaxNode;
     }
 
     @Override
@@ -85,8 +63,6 @@ public class CategoryPropertiesTableNodeBuilder extends BaseTableTreeNodeBuilder
         return new ProjectTreeNode(new String[] { folderName, folderName, folderName },
             IProjectTypes.PT_FOLDER,
             null,
-            null,
-            0,
-            null);
+                null);
     }
 }
