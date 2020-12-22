@@ -181,21 +181,6 @@ public class SimpleProjectEngineFactoryTest {
         Assert.assertTrue(instance instanceof SayHelloWithVariation);
     }
 
-    @Test(expected = RulesInstantiationException.class)
-    public void singleModuleTest() throws Exception {
-        SimpleProjectEngineFactory<SayHello> simpleProjectEngineFactory = new SimpleProjectEngineFactoryBuilder<SayHello>()
-            .setProject("test-resources/test1/third")
-            .setWorkspace("test-resources/test1")
-            .setInterfaceClass(SayHello.class)
-            .setModule("someNotExistedModule")
-            .build();
-        Object instance = simpleProjectEngineFactory.newInstance();
-        Assert.assertNotNull(instance);
-        Assert.assertNotNull(simpleProjectEngineFactory.getInterfaceClass());
-        Assert.assertEquals(simpleProjectEngineFactory.getInterfaceClass(), SayHello.class);
-        Assert.assertTrue(instance instanceof SayHello);
-    }
-
     @Test
     public void dynamicInterfaceTest2() throws Exception {
         SimpleProjectEngineFactory<Object> simpleProjectEngineFactory = new SimpleProjectEngineFactoryBuilder<>()
