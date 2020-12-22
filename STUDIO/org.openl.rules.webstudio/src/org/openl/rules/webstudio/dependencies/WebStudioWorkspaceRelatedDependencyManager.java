@@ -26,11 +26,19 @@ import org.openl.syntax.code.IDependency;
 import org.openl.types.NullOpenClass;
 
 public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependencyManager {
+
+    private enum ThreadPriority {
+        LOW,
+        HIGH;
+    }
+
     private static final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private final List<ProjectDescriptor> projects;
     private final AtomicLong version = new AtomicLong(0);
     private final ThreadLocal<Long> threadVersion = new ThreadLocal<>();
+    private final AtomicLong highThreadPriorityFlag = new AtomicLong(0);
+    private final ThreadLocal<ThreadPriority> threadPriority = new ThreadLocal<>();
 
     public WebStudioWorkspaceRelatedDependencyManager(Collection<ProjectDescriptor> projects,
             ClassLoader rootClassLoader,
@@ -43,21 +51,54 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
 
     @Override
     public CompiledDependency loadDependency(IDependency dependency) throws OpenLCompilationException {
-        Long currentThreadVersion = threadVersion.get();
-        if (currentThreadVersion == null) {
-            threadVersion.set(version.get());
-            try {
-                return super.loadDependency(dependency);
-            } finally {
-                threadVersion.remove();
+        ThreadPriority priority = threadPriority.get();
+        if (priority == null) {
+            threadPriority.set(ThreadPriority.HIGH);
+        }
+        if (priority == null || priority == ThreadPriority.HIGH) {
+            highThreadPriorityFlag.incrementAndGet();
+        }
+        try {
+            synchronized (this) {
+                if (priority == ThreadPriority.LOW) {
+                    // Low priority threads wait here
+                    try {
+                        while (highThreadPriorityFlag.get() > 0) {
+                            this.wait();
+                        }
+                    } catch (InterruptedException e) {
+                        throw new OpenLCompilationException("Compilation is interrupted", e);
+                    }
+                }
+
+                Long currentThreadVersion = threadVersion.get();
+                if (currentThreadVersion == null) {
+                    threadVersion.set(version.get());
+                    try {
+                        return super.loadDependency(dependency);
+                    } finally {
+                        threadVersion.remove();
+                    }
+
+                } else {
+                    if (Objects.equals(currentThreadVersion, version.get())) {
+                        return super.loadDependency(dependency);
+                    } else {
+                        return new CompiledDependency(dependency.getNode().getIdentifier(),
+                            new CompiledOpenClass(NullOpenClass.the,
+                                Collections.singletonList(new CompilationInterruptedOpenLErrorMessage())));
+                    }
+                }
             }
-        } else {
-            if (Objects.equals(currentThreadVersion, version.get())) {
-                return super.loadDependency(dependency);
-            } else {
-                return new CompiledDependency(dependency.getNode().getIdentifier(),
-                    new CompiledOpenClass(NullOpenClass.the,
-                        Collections.singletonList(new CompilationInterruptedOpenLErrorMessage())));
+        } finally {
+            if (priority == null) {
+                threadPriority.remove();
+            }
+            if (priority == null || priority == ThreadPriority.HIGH) {
+                synchronized (this) {
+                    highThreadPriorityFlag.decrementAndGet();
+                    this.notifyAll();
+                }
             }
         }
     }
@@ -72,20 +113,25 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
 
     public void loadDependencyAsync(IDependency dependency, Consumer<CompiledDependency> consumer) {
         executorService.submit(() -> {
-            CompiledDependency compiledDependency;
             try {
-                compiledDependency = this.loadDependency(dependency);
-            } catch (OpenLCompilationException e) {
-                compiledDependency = new CompiledDependency(dependency.getNode().getIdentifier(),
-                    new CompiledOpenClass(NullOpenClass.the, Collections.singletonList(new OpenLErrorMessage(e))));
-            }
-            if (compiledDependency.getCompiledOpenClass()
-                .getMessages()
-                .stream()
-                .anyMatch(e -> e instanceof CompilationInterruptedOpenLErrorMessage)) {
-                loadDependencyAsync(dependency, consumer);
-            } else {
-                consumer.accept(compiledDependency);
+                threadPriority.set(ThreadPriority.LOW);
+                CompiledDependency compiledDependency;
+                try {
+                    compiledDependency = this.loadDependency(dependency);
+                } catch (OpenLCompilationException e) {
+                    compiledDependency = new CompiledDependency(dependency.getNode().getIdentifier(),
+                        new CompiledOpenClass(NullOpenClass.the, Collections.singletonList(new OpenLErrorMessage(e))));
+                }
+                if (compiledDependency.getCompiledOpenClass()
+                    .getMessages()
+                    .stream()
+                    .anyMatch(e -> e instanceof CompilationInterruptedOpenLErrorMessage)) {
+                    loadDependencyAsync(dependency, consumer);
+                } else {
+                    consumer.accept(compiledDependency);
+                }
+            } finally {
+                threadPriority.remove();
             }
         });
     }
