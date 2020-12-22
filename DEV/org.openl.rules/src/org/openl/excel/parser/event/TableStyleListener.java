@@ -68,7 +68,7 @@ public class TableStyleListener implements HSSFListener {
     private final int[][] cellIndexes;
     private PaletteRecord palette;
     private DirectoryNode directory;
-    private List<RecordBase> shapeRecords = new ArrayList<>();
+    private final List<RecordBase> shapeRecords = new ArrayList<>();
 
     private FormulaRecord currentFormula;
     private SharedValueManager sharedValueManager;
@@ -150,12 +150,7 @@ public class TableStyleListener implements HSSFListener {
                 BOFRecord bof = (BOFRecord) record;
                 if (bof.getType() == BOFRecord.TYPE_WORKSHEET) {
                     if (!sheetsSorted) {
-                        Collections.sort(sheets, new Comparator<EventSheetDescriptor>() {
-                            @Override
-                            public int compare(EventSheetDescriptor o1, EventSheetDescriptor o2) {
-                                return o1.getOffset() - o2.getOffset();
-                            }
-                        });
+                        sheets.sort(Comparator.comparingInt(EventSheetDescriptor::getOffset));
                         sheetsSorted = true;
                     }
 

@@ -29,7 +29,7 @@ import org.openl.rules.ui.tablewizard.util.JSONHolder;
 import org.openl.rules.ui.validation.StringPresentedGroup;
 import org.openl.rules.ui.validation.StringValidGroup;
 import org.openl.rules.ui.validation.TableNameConstraint;
-import org.openl.rules.utils.TableNameChecker;
+import org.openl.util.TableNameChecker;
 import org.openl.util.StringUtils;
 import org.richfaces.json.JSONException;
 import org.slf4j.Logger;
@@ -112,7 +112,7 @@ public class SimpleRulesCreationWizard extends TableCreationWizard {
 
             if (!items.isEmpty()) {
                 SelectItemGroup itemGroup = new SelectItemGroup(entry.getKey());
-                itemGroup.setSelectItems(items.toArray(new SelectItem[items.size()]));
+                itemGroup.setSelectItems(items.toArray(new SelectItem[0]));
                 propertyNames.add(itemGroup);
             }
         }
@@ -242,7 +242,7 @@ public class SimpleRulesCreationWizard extends TableCreationWizard {
         this.typesList = typesList;
     }
 
-    public final class DomainTypeHolder {
+    public static final class DomainTypeHolder {
         private String name;
         private String type;
         private boolean iterable;

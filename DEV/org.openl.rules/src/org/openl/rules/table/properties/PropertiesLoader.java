@@ -32,9 +32,9 @@ public class PropertiesLoader {
 
     private static final String PROPERTIES_SECTION_NAME = "Properties_Section";
 
-    private OpenL openl;
-    private RulesModuleBindingContext bindingContext;
-    private XlsModuleOpenClass module;
+    private final OpenL openl;
+    private final RulesModuleBindingContext bindingContext;
+    private final XlsModuleOpenClass module;
 
     public PropertiesLoader(OpenL openl, RulesModuleBindingContext cxt, XlsModuleOpenClass module) {
         this.openl = openl;
@@ -229,7 +229,7 @@ public class PropertiesLoader {
             ITableProperties externalProperties = (ITableProperties) externalParams.get(EXTERNAL_MODULE_PROPERTIES_KEY);
             if (moduleProperties != null) {
                 for (String key : externalProperties.getAllProperties().keySet()) {
-                    if (moduleProperties.getAllProperties().keySet().contains(key)) {
+                    if (moduleProperties.getAllProperties().containsKey(key)) {
                         bindingContext.addMessage(OpenLMessagesUtils.newErrorMessage(
                             String.format("Property '%s' is already defined via external properties.", key)));
                     }

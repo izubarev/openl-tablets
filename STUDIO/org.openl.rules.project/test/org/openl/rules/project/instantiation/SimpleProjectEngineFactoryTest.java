@@ -122,6 +122,7 @@ public class SimpleProjectEngineFactoryTest {
         Assert.assertNotNull(instance);
         Assert.assertNotNull(simpleProjectEngineFactory.getInterfaceClass());
         Assert.assertEquals(simpleProjectEngineFactory.getInterfaceClass(), SayHello.class);
+        Assert.assertTrue(instance instanceof SayHello);
     }
 
     @Test(expected = RulesInstantiationException.class)
@@ -147,6 +148,7 @@ public class SimpleProjectEngineFactoryTest {
         Object instance = simpleProjectEngineFactory.newInstance();
         Assert.assertNotNull(instance);
         Assert.assertEquals(simpleProjectEngineFactory.getInterfaceClass(), SayHelloWithRuntimeContext.class);
+        Assert.assertTrue(instance instanceof SayHelloWithRuntimeContext);
     }
 
     @Test
@@ -162,6 +164,7 @@ public class SimpleProjectEngineFactoryTest {
         Assert.assertNotNull(instance);
         Assert.assertEquals(simpleProjectEngineFactory.getInterfaceClass(),
                 SayHelloWithRuntimeContextAndVariation.class);
+        Assert.assertTrue(instance instanceof SayHelloWithRuntimeContextAndVariation);
     }
 
     @Test
@@ -175,6 +178,22 @@ public class SimpleProjectEngineFactoryTest {
         Object instance = simpleProjectEngineFactory.newInstance();
         Assert.assertNotNull(instance);
         Assert.assertEquals(simpleProjectEngineFactory.getInterfaceClass(), SayHelloWithVariation.class);
+        Assert.assertTrue(instance instanceof SayHelloWithVariation);
+    }
+
+    @Test(expected = RulesInstantiationException.class)
+    public void singleModuleTest() throws Exception {
+        SimpleProjectEngineFactory<SayHello> simpleProjectEngineFactory = new SimpleProjectEngineFactoryBuilder<SayHello>()
+            .setProject("test-resources/test1/third")
+            .setWorkspace("test-resources/test1")
+            .setInterfaceClass(SayHello.class)
+            .setModule("someNotExistedModule")
+            .build();
+        Object instance = simpleProjectEngineFactory.newInstance();
+        Assert.assertNotNull(instance);
+        Assert.assertNotNull(simpleProjectEngineFactory.getInterfaceClass());
+        Assert.assertEquals(simpleProjectEngineFactory.getInterfaceClass(), SayHello.class);
+        Assert.assertTrue(instance instanceof SayHello);
     }
 
     @Test

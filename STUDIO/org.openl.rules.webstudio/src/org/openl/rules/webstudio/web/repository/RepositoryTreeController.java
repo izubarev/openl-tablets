@@ -668,7 +668,7 @@ public class RepositoryTreeController {
                 if (repository.supports().mappedFolders()) {
                     String projectPath = StringUtils.isEmpty(projectFolder) ? projectName : projectFolder + projectName;
                     if (((FolderMapper) repository).getDelegate().check(projectPath) != null) {
-                        return "Cannot create the project because a project with such path already exists but it's not imported into WebStudio. Try to import that project from repository or create with another path.";
+                        return "Cannot create the project because a project with such path already exists. Try to import that project from repository or create new project with another path or name.";
                     }
                 }
             }
@@ -1174,7 +1174,7 @@ public class RepositoryTreeController {
             WebStudioUtils.addInfoMessage("Project was erased successfully.");
         } catch (Exception e) {
             repositoryTreeState.invalidateTree();
-            String msg = "Cannot erase project '" + project.getBusinessName() + "'.";
+            String msg = e.getCause() instanceof IOException ? e.getMessage() : "Cannot erase project '" + project.getBusinessName() + "'.";
             log.error(msg, e);
             WebStudioUtils.addErrorMessage(msg);
         }
@@ -1193,8 +1193,8 @@ public class RepositoryTreeController {
                 .getRepository(project.getRepository().getId());
             if (mainRepo != null && mainRepo.supports().branches() && !((BranchRepository) mainRepo).getBranch()
                 .equals(branch)) {
-                studio.getModel().clearModuleInfo(); // Release resources like jars
-                project.close();
+                ProjectHistoryService.deleteHistory(project.getBusinessName());
+                closeProjectAndReleaseResources(project);
 
                 // Delete secondary branch
                 ((BranchRepository) mainRepo).deleteBranch(null, branch);
@@ -2088,13 +2088,13 @@ public class RepositoryTreeController {
         if (!editorWasEnabled) {
             if (moduleType == OpenAPIModule.MODEL) {
                 if (StringUtils.isNotBlank(modelsModuleName)) {
-                    pathForModels = openAPIEditorService.generatePath(modelsModuleName);
+                    pathForModels = openAPIEditorService.generateModulePath(modelsModuleName);
                 } else {
                     pathForModels = propertyResolver.getProperty(OPENAPI_DEFAULT_DATA_MODULE_PATH);
                 }
             } else {
                 if (StringUtils.isNotBlank(algorithmsModuleName)) {
-                    pathForModels = openAPIEditorService.generatePath(algorithmsModuleName);
+                    pathForModels = openAPIEditorService.generateModulePath(algorithmsModuleName);
                 } else {
                     pathForModels = propertyResolver.getProperty(OPENAPI_DEFAULT_ALGORITHM_MODULE_PATH);
                 }
@@ -2410,7 +2410,7 @@ public class RepositoryTreeController {
             return false;
         }
         return Boolean.parseBoolean(
-            propertyResolver.getProperty("repository." + repositoryId + ".comment-template.use-custom-comments"));
+            propertyResolver.getProperty(Comments.REPOSITORY_PREFIX + repositoryId + ".comment-template.use-custom-comments"));
     }
 
     /**
@@ -2612,16 +2612,16 @@ public class RepositoryTreeController {
 
     public void changeModelsFilePathInputState() {
         setEditModelsPath(!editModelsPath);
-        setModelsPath(editModelsPath ? openAPIEditorService.generatePath(modelsModuleName)
+        setModelsPath(editModelsPath ? openAPIEditorService.generateModulePath(modelsModuleName)
                                      : propertyResolver.getProperty(OPENAPI_DEFAULT_DATA_MODULE_PATH));
-        setAlgorithmsPath(openAPIEditorService.generatePath(algorithmsModuleName));
+        setAlgorithmsPath(openAPIEditorService.generateModulePath(algorithmsModuleName));
     }
 
     public void changeAlgorithmsFilePathInputState() {
         setEditAlgorithmsPath(!editAlgorithmsPath);
-        setAlgorithmsPath(editAlgorithmsPath ? openAPIEditorService.generatePath(algorithmsModuleName)
+        setAlgorithmsPath(editAlgorithmsPath ? openAPIEditorService.generateModulePath(algorithmsModuleName)
                                              : propertyResolver.getProperty(OPENAPI_DEFAULT_ALGORITHM_MODULE_PATH));
-        setModelsPath(openAPIEditorService.generatePath(modelsModuleName));
+        setModelsPath(openAPIEditorService.generateModulePath(modelsModuleName));
     }
 
     public boolean getEraseFromRepository() {
@@ -2649,7 +2649,7 @@ public class RepositoryTreeController {
     }
 
     public String getModelsPath() {
-        return openAPIEditorService.generatePath(modelsModuleName);
+        return openAPIEditorService.generateModulePath(modelsModuleName);
     }
 
     public void setModelsPath(String modelsPath) {
@@ -2657,7 +2657,7 @@ public class RepositoryTreeController {
     }
 
     public String getAlgorithmsPath() {
-        return openAPIEditorService.generatePath(algorithmsModuleName);
+        return openAPIEditorService.generateModulePath(algorithmsModuleName);
     }
 
     public void setAlgorithmsPath(String algorithmsPath) {

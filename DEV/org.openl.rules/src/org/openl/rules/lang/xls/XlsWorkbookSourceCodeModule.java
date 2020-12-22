@@ -1,6 +1,12 @@
 package org.openl.rules.lang.xls;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -22,11 +28,12 @@ import org.openl.util.StringTool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Deprecated
 public class XlsWorkbookSourceCodeModule implements IOpenSourceCodeModule {
 
     private final Logger log = LoggerFactory.getLogger(XlsWorkbookSourceCodeModule.class);
 
-    protected IOpenSourceCodeModule src;
+    protected final IOpenSourceCodeModule src;
 
     private final WorkbookLoader workbookLoader;
 

@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 public class RulesProject extends UserWorkspaceProject {
     private final Logger log = LoggerFactory.getLogger(RulesProject.class);
 
-    private LocalRepository localRepository;
+    private final LocalRepository localRepository;
     private String localFolderName;
 
     private Repository designRepository;
@@ -205,6 +205,11 @@ public class RulesProject extends UserWorkspaceProject {
             // Delete properties folder. Workaround for broken empty projects that failed to delete properties folder
             // last time
             localRepository.getProjectState(localFolderName).delete();
+
+            // Delete empty folders. They won't be deleted in the code above.
+            FileData folderData = new FileData();
+            folderData.setName(localFolderName);
+            localRepository.delete(folderData);
         } catch (IOException e) {
             throw new ProjectException("Not possible to read the directory", e);
         }
@@ -233,8 +238,10 @@ public class RulesProject extends UserWorkspaceProject {
     @Override
     public LockInfo getLockInfo() {
         try {
-            String repoId = isLocalOnly() ? "local" : getDesignRepository().getId();
-            return lockEngine.getLockInfo(repoId, getBranch(), getRealPath());
+            if (isLocalOnly()) {
+                return LockInfo.NO_LOCK;
+            }
+            return lockEngine.getLockInfo(getDesignRepository().getId(), getBranch(), getRealPath());
         } catch (Exception e) {
             log.error(e.getMessage(), e);
             return LockInfo.NO_LOCK;
@@ -521,13 +528,21 @@ public class RulesProject extends UserWorkspaceProject {
         return designRepository;
     }
 
-    public Repository getLocalRepository() {
+    public LocalRepository getLocalRepository() {
         return localRepository;
     }
 
     @Override
     public String getRealPath() {
         if (isLocalOnly()) {
+            ProjectState state = localRepository.getProjectState(getFolderPath());
+            if (state.getFileData() != null) {
+                FileMappingData mappingData = state.getFileData().getAdditionalData(FileMappingData.class);
+                if (mappingData != null) {
+                    return mappingData.getInternalPath();
+                }
+            }
+
             return localFolderName;
         }
         String folderPath = getDesignFolderName();

@@ -43,7 +43,7 @@ public class ComponentOpenClass extends ADynamicClass {
     /**
      * Clears all unnecessary data for "Execution Mode"
      */
-    public void clearOddDataForExecutionMode() {
+    public void clearForExecutionMode() {
         setMetaInfo(null);
     }
 
@@ -68,7 +68,7 @@ public class ComponentOpenClass extends ADynamicClass {
     }
 
     private class DefaultInitializer implements IOpenMethod {
-        List<IBoundNode> boundNodes = new ArrayList<>();
+        final List<IBoundNode> boundNodes = new ArrayList<>();
 
         public void addNode(IBoundNode node) {
             boundNodes.add(node);

@@ -1,5 +1,7 @@
 package org.openl.rules.webstudio.web;
 
+import static org.openl.rules.webstudio.util.NameChecker.BAD_NAME_MSG;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -7,6 +9,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -18,13 +22,12 @@ import javax.faces.context.FacesContext;
 
 import org.openl.rules.common.ProjectException;
 import org.openl.rules.common.impl.ArtefactPathImpl;
-import org.openl.rules.excel.builder.ExcelFileBuilder;
-import org.openl.rules.model.scaffolding.DatatypeModel;
 import org.openl.rules.model.scaffolding.ProjectModel;
-import org.openl.rules.model.scaffolding.SpreadsheetModel;
-import org.openl.rules.model.scaffolding.data.DataModel;
 import org.openl.rules.model.scaffolding.environment.EnvironmentModel;
 import org.openl.rules.openapi.OpenAPIModelConverter;
+import org.openl.rules.openapi.impl.JavaClassFile;
+import org.openl.rules.openapi.impl.OpenAPIGeneratedClasses;
+import org.openl.rules.openapi.impl.OpenAPIJavaClassGenerator;
 import org.openl.rules.openapi.impl.OpenAPIScaffoldingConverter;
 import org.openl.rules.project.IProjectDescriptorSerializer;
 import org.openl.rules.project.IRulesDeploySerializer;
@@ -57,6 +60,7 @@ import org.openl.rules.ui.Message;
 import org.openl.rules.ui.WebStudio;
 import org.openl.rules.ui.util.ListItem;
 import org.openl.rules.webstudio.WebStudioFormats;
+import org.openl.rules.webstudio.service.OpenAPIHelper;
 import org.openl.rules.webstudio.util.NameChecker;
 import org.openl.rules.webstudio.web.repository.RepositoryTreeState;
 import org.openl.rules.webstudio.web.repository.tree.TreeProject;
@@ -109,6 +113,8 @@ public class ProjectBean {
     private Integer currentModuleIndex;
     private IRulesDeploySerializer rulesDeploySerializer;
 
+    private final OpenAPIHelper openAPIHelper = new OpenAPIHelper();
+
     public ProjectBean(RepositoryTreeState repositoryTreeState,
             ProjectDescriptorSerializerFactory projectDescriptorSerializerFactory,
             RulesDeploySerializerFactory rulesDeploySerializerFactory) {
@@ -119,22 +125,10 @@ public class ProjectBean {
 
     public String getModulePath(Module module) {
         PathEntry modulePath = module == null ? null : module.getRulesRootPath();
-
         if (modulePath == null) {
             return null;
         }
-
-        String moduleFullPath = modulePath.getPath();
-        ProjectDescriptor project = module.getProject();
-        if (project == null || project.getProjectFolder() == null) {
-            return moduleFullPath;
-        }
-        String projectFullPath = project.getProjectFolder().getAbsolutePath();
-
-        if (moduleFullPath.contains(projectFullPath)) {
-            return moduleFullPath.replace(projectFullPath, "").substring(1);
-        }
-        return moduleFullPath;
+        return modulePath.getPath();
     }
 
     public List<ListItem<ProjectDependencyDescriptor>> getDependencies() {
@@ -306,7 +300,7 @@ public class ProjectBean {
         if (StringUtils.isBlank(oldName) // Add new Module
                 || !oldName.equals(newName)) { // Edit current Module
             if (!withWildcard || StringUtils.isNotBlank(newName)) {
-                WebStudioUtils.validate(NameChecker.checkName(newName), NameChecker.BAD_NAME_MSG);
+                WebStudioUtils.validate(NameChecker.checkName(newName), BAD_NAME_MSG);
 
                 Module module = studio.getModule(studio.getCurrentProjectDescriptor(), newName);
                 WebStudioUtils.validate(module == null, "Module with such name already exists");
@@ -329,7 +323,7 @@ public class ProjectBean {
         if (StringUtils.isBlank(oldName) // Add new Module
                 || !oldName.equals(newName)) { // Edit current Module
             if (!withWildcard || StringUtils.isNotBlank(newName)) {
-                WebStudioUtils.validate(NameChecker.checkName(newName), NameChecker.BAD_NAME_MSG);
+                WebStudioUtils.validate(NameChecker.checkName(newName), BAD_NAME_MSG);
 
                 Module module = studio.getModule(studio.getCurrentProjectDescriptor(), newName);
                 WebStudioUtils.validate(module == null, "Module with such name already exists");
@@ -343,8 +337,8 @@ public class ProjectBean {
         WebStudioUtils.validate(StringUtils.isNotBlank(path), CANNOT_BE_EMPTY_MESSAGE);
 
         if (!(path.contains("*") || path.contains("?"))) {
-            File moduleFile = new File(studio.getCurrentProjectDescriptor().getProjectFolder(), path);
-            WebStudioUtils.validate(moduleFile.exists(), "File with such path does not exist");
+            Path moduleFile = studio.getCurrentProjectDescriptor().getProjectFolder().resolve(path);
+            WebStudioUtils.validate(Files.exists(moduleFile), "File with such path does not exist");
         }
     }
 
@@ -358,8 +352,8 @@ public class ProjectBean {
         } catch (IOException e) {
             WebStudioUtils.throwValidationError(String.format("Invalid path \"%s\". %s", path, e.getMessage()));
         }
-        File moduleFile = new File(studio.getCurrentProjectDescriptor().getProjectFolder(), path);
-        WebStudioUtils.validate(!moduleFile.exists(), "File with such name already exists");
+        Path moduleFile = studio.getCurrentProjectDescriptor().getProjectFolder().resolve(path);
+        WebStudioUtils.validate(!Files.exists(moduleFile), "File with such name already exists");
     }
 
     public void validateOpenAPIPath(FacesContext context, UIComponent uiComponent, Object value) {
@@ -379,10 +373,12 @@ public class ProjectBean {
     }
 
     public void validateAlgorithmPath(FacesContext context, UIComponent component, Object value) {
-        String path = WebStudioUtils.getRequestParameter("generateOpenAPIForm:algorithmModulePath");
+        String algoPath = WebStudioUtils.getRequestParameter("generateOpenAPIForm:algorithmModulePath");
+        String modelPath = WebStudioUtils.getRequestParameter("generateOpenAPIForm:modelModulePath");
         String algorithmModuleNameParam = WebStudioUtils.getRequestParameter("generateOpenAPIForm:algorithmModuleName");
-        WebStudioUtils.validate(StringUtils.isNotBlank(path), "Algorithm Module Path cannot be empty.");
-        validatePath(path, algorithmModuleNameParam);
+        WebStudioUtils.validate(StringUtils.isNotBlank(algoPath), "Algorithm Module Path cannot be empty.");
+        WebStudioUtils.validate(!algoPath.equalsIgnoreCase(modelPath), "Module paths cannot be the same");
+        validatePath(algoPath, algorithmModuleNameParam);
     }
 
     private void validatePath(String path, String moduleName) {
@@ -392,6 +388,8 @@ public class ProjectBean {
             WebStudioUtils.throwValidationError(String.format("Invalid path \"%s\". %s", path, e.getMessage()));
         }
         String fileName = FileUtils.getBaseName(path);
+        WebStudioUtils.validate(NameChecker.checkName(fileName),
+            "File name contains illegal characters " + BAD_NAME_MSG);
         WebStudioUtils.validate(StringUtils.isNotBlank(fileName), "File name is not defined.");
         String fileNameWithExtension = FileUtils.getName(path);
         WebStudioUtils.validate(FileTypeHelper.isExcelFile(fileNameWithExtension),
@@ -403,16 +401,18 @@ public class ProjectBean {
         if (module == null || (module
             .getRulesRootPath() != null && !getArtefactPath(module.getRulesRootPath().getPath(), folderPath)
                 .equals(path))) {
-            File moduleFile = new File(currentProjectDescriptor.getProjectFolder(), path);
-            WebStudioUtils.validate(!moduleFile.exists(), "File with such name already exists.");
+            Path moduleFile = currentProjectDescriptor.getProjectFolder().resolve(path);
+            WebStudioUtils.validate(!Files.exists(moduleFile), "File with such name already exists.");
         }
 
     }
 
     public void validateDataPath(FacesContext context, UIComponent component, Object value) {
         String path = WebStudioUtils.getRequestParameter("generateOpenAPIForm:modelModulePath");
+        String algoPath = WebStudioUtils.getRequestParameter("generateOpenAPIForm:algorithmModulePath");
         String modelModuleNameParam = WebStudioUtils.getRequestParameter("generateOpenAPIForm:modelModuleName");
         WebStudioUtils.validate(StringUtils.isNotBlank(path), "Data Module Path cannot be empty.");
+        WebStudioUtils.validate(!algoPath.equalsIgnoreCase(path), "Module paths cannot be the same");
         validatePath(path, modelModuleNameParam);
     }
 
@@ -534,10 +534,10 @@ public class ProjectBean {
             filter.setExcludes(null);
 
             if (StringUtils.isNotBlank(includes)) {
-                filter.addIncludePattern(includes.split(StringTool.NEW_LINE));
+                filter.addIncludePattern(StringUtils.toLines(includes));
             }
             if (StringUtils.isNotBlank(excludes)) {
-                filter.addExcludePattern(excludes.split(StringTool.NEW_LINE));
+                filter.addExcludePattern(StringUtils.toLines(excludes));
             }
 
             if (moduleWasRenamed) {
@@ -572,11 +572,11 @@ public class ProjectBean {
         String oldPath = WebStudioUtils.getRequestParameter("copyModuleForm:modulePathOld");
         String path = WebStudioUtils.getRequestParameter("copyModuleForm:modulePath");
 
-        File projectFolder = studio.getCurrentProjectDescriptor().getProjectFolder();
-        File inputFile = new File(projectFolder, oldPath);
-        File outputFile = new File(projectFolder, path);
+        Path projectFolder = studio.getCurrentProjectDescriptor().getProjectFolder();
+        Path inputFile = projectFolder.resolve(oldPath);
+        Path outputFile = projectFolder.resolve(path);
         try {
-            FileUtils.copy(inputFile, outputFile);
+            FileUtils.copy(inputFile.toFile(), outputFile.toFile());
         } catch (IOException e) {
             if (log.isErrorEnabled()) {
                 log.error(e.getMessage(), e);
@@ -631,7 +631,7 @@ public class ProjectBean {
 
         if (StringUtils.isEmpty(leaveExcelFile)) {
             ProjectDescriptor currentProjectDescriptor = studio.getCurrentProjectDescriptor();
-            File projectFolder = currentProjectDescriptor.getProjectFolder();
+            File projectFolder = currentProjectDescriptor.getProjectFolder().toFile();
 
             if (projectDescriptorManager.isModuleWithWildcard(removed)) {
                 for (Module module : currentProjectDescriptor.getModules()) {
@@ -640,16 +640,21 @@ public class ProjectBean {
                         continue;
                     }
                     if (module.getWildcardRulesRootPath().equals(removed.getRulesRootPath().getPath())) {
-                        File file = new File(module.getRulesRootPath().getPath());
+                        File file = module.getRulesPath().toFile();
                         if (!file.delete() && file.exists()) {
                             throw new Message("Cannot delete the file " + file.getName());
                         }
                     }
                 }
             } else {
-                File file = new File(removed.getRulesRootPath().getPath());
-                if (!file.isAbsolute()) {
-                    file = new File(projectFolder, removed.getRulesRootPath().getPath());
+                File file;
+                if (removed.getProject() != null) {
+                    file = removed.getRulesPath().toFile();
+                } else {
+                    file = currentProjectDescriptor.getProjectFolder()
+                        .resolve(removed.getRulesRootPath().getPath())
+                        .toAbsolutePath()
+                        .toFile();
                 }
                 if (!file.delete() && file.exists()) {
                     throw new Message("Cannot delete the file " + file.getName());
@@ -663,9 +668,9 @@ public class ProjectBean {
                 if (openAPI != null) {
                     String definedAlgoModuleName = openAPI.getAlgorithmModuleName();
                     String definedModelsName = openAPI.getModelModuleName();
-                    if (definedAlgoModuleName.equalsIgnoreCase(removedModuleName)) {
+                    if (definedAlgoModuleName != null && definedAlgoModuleName.equalsIgnoreCase(removedModuleName)) {
                         openAPI.setAlgorithmModuleName(null);
-                    } else if (definedModelsName.equalsIgnoreCase(removedModuleName)) {
+                    } else if (definedModelsName != null && definedModelsName.equalsIgnoreCase(removedModuleName)) {
                         openAPI.setModelModuleName(null);
                     }
                 }
@@ -724,14 +729,12 @@ public class ProjectBean {
         tryLockProject();
 
         List<PathEntry> sourceList = new ArrayList<>();
-        String[] sourceArray = sources.split(StringTool.NEW_LINE);
+        String[] sourceArray = StringUtils.toLines(sources);
 
         if (CollectionUtils.isNotEmpty(sourceArray)) {
             for (String source : sourceArray) {
-                if (StringUtils.isNotBlank(source)) {
-                    PathEntry sourcePath = new PathEntry(source);
-                    sourceList.add(sourcePath);
-                }
+                PathEntry sourcePath = new PathEntry(source);
+                sourceList.add(sourcePath);
             }
         }
 
@@ -803,6 +806,9 @@ public class ProjectBean {
         if (!NameChecker.checkName(algorithmModuleNameParam) || !NameChecker.checkName(modelModuleNameParam)) {
             throw new Message("Module names are not correct.");
         }
+        if (modelModulePathParam.equalsIgnoreCase(algorithmModulePathParam)) {
+            throw new Message("Module paths cannot be the same.");
+        }
         Module existingAlgorithmModule = studio.getModule(currentProjectDescriptor, algorithmModuleNameParam);
         boolean isNewAlgorithmModule = existingAlgorithmModule == null;
         Module existingModelModule = studio.getModule(currentProjectDescriptor, modelModuleNameParam);
@@ -810,19 +816,24 @@ public class ProjectBean {
 
         validatePaths(algorithmModulePathParam, modelModulePathParam, isNewAlgorithmModule, isNewDataModule);
 
-        boolean infoChanged;
+        boolean openAPIInfoChanged;
+        boolean classPathChanged = false;
 
         final OpenAPI existingOpenAPI = currentProjectDescriptor.getOpenapi();
         OpenAPI openAPI = new OpenAPI();
         openAPI.setPath(openAPIPathParam);
         openAPI.setMode(OpenAPI.Mode.GENERATION);
 
+        List<PathEntry> currentClassPath = currentProjectDescriptor.getClasspath();
+        boolean openAPIClassesInClassPath = CollectionUtils.isNotEmpty(currentClassPath) && currentClassPath.stream()
+            .anyMatch(pathEntry -> pathEntry.getPath().equals(OpenAPIHelper.DEF_JAVA_CLASS_PATH));
+
         if (existingOpenAPI == null || existingOpenAPI.getPath() == null || existingOpenAPI.getMode() == null) {
-            infoChanged = true;
+            openAPIInfoChanged = true;
         } else {
             boolean pathWasChanged = !existingOpenAPI.getPath().equals(openAPIPathParam);
             boolean modeWasChanged = !existingOpenAPI.getMode().equals(OpenAPI.Mode.GENERATION);
-            infoChanged = pathWasChanged || modeWasChanged;
+            openAPIInfoChanged = pathWasChanged || modeWasChanged;
         }
 
         RulesProject currentProject = studio.getCurrentProject();
@@ -830,7 +841,7 @@ public class ProjectBean {
         AProjectArtefact openAPIFile = getOpenAPIFile(openAPIPathParam, currentProject);
 
         if (!isNewAlgorithmModule) {
-            removeExistingFile(existingAlgorithmModule,
+            deleteExistingExcelFile(existingAlgorithmModule,
                 currentProject,
                 "It's impossible to delete existing generated Rules file.");
             openAPI.setAlgorithmModuleName(algorithmModuleNameParam);
@@ -840,11 +851,11 @@ public class ProjectBean {
             rulesModule.setName(algorithmModuleNameParam);
             modules.add(rulesModule);
             openAPI.setAlgorithmModuleName(algorithmModuleNameParam);
-            infoChanged = true;
+            openAPIInfoChanged = true;
         }
 
         if (!isNewDataModule) {
-            removeExistingFile(existingModelModule,
+            deleteExistingExcelFile(existingModelModule,
                 currentProject,
                 "It's impossible to delete existing generated Data Types file.");
             openAPI.setModelModuleName(modelModuleNameParam);
@@ -854,7 +865,7 @@ public class ProjectBean {
             modelsModule.setName(modelModuleNameParam);
             modules.add(modelsModule);
             openAPI.setModelModuleName(modelModuleNameParam);
-            infoChanged = true;
+            openAPIInfoChanged = true;
         }
 
         String workspacePath = studio.getWorkspacePath();
@@ -865,37 +876,122 @@ public class ProjectBean {
             internalOpenAPIPath,
             converter);
 
-        if (currentProject.hasArtefact(RULES_DEPLOY_XML)) {
-            editRulesDeploy(currentProject, projectModel);
+        addDataTypesFile(modelModulePathParam, currentProject, projectModel);
+
+        addAlgorithmsFile(modelModuleNameParam, algorithmModulePathParam, currentProject, projectModel);
+
+        OpenAPIGeneratedClasses generated = new OpenAPIJavaClassGenerator(projectModel).generate();
+        boolean annotationTemplateClassesAreGenerated = generated.hasAnnotationTemplateClass();
+        deletePreviouslyGeneratedOpenAPIClasses(currentProject);
+        addGeneratedJavaClasses(currentProject, generated, annotationTemplateClassesAreGenerated);
+
+        if (annotationTemplateClassesAreGenerated) {
+            if (!openAPIClassesInClassPath) {
+                classPathChanged = true;
+            }
         } else {
-            configureRulesDeploy(currentProject, projectModel);
+            if (openAPIClassesInClassPath) {
+                classPathChanged = true;
+            }
         }
 
-        try (InputStream dataTypes = generateDataTypesFile(projectModel.getDatatypeModels())) {
-            currentProject.addResource(modelModulePathParam, dataTypes);
-        } catch (IOException | ProjectException e) {
+        editOrCreateRulesDeploy(currentProject, projectModel, generated, currentProject.hasArtefact(RULES_DEPLOY_XML));
+
+        refreshProject(currentProject.getRepository().getId(), currentProject.getName());
+
+        if (openAPIInfoChanged || classPathChanged) {
+            editDescriptorIfNeeded(currentProjectDescriptor,
+                openAPIInfoChanged,
+                classPathChanged,
+                openAPI,
+                annotationTemplateClassesAreGenerated);
+        }
+    }
+
+    private void addGeneratedJavaClasses(RulesProject currentProject,
+            OpenAPIGeneratedClasses generated,
+            boolean annotationTemplateClassesAreGenerated) {
+        if (annotationTemplateClassesAreGenerated) {
+            try {
+                String javaInterfacePath = openAPIHelper
+                    .makePathToTheGeneratedFile(generated.getAnnotationTemplateClass().getPath());
+                currentProject.addResource(javaInterfacePath, generated.getAnnotationTemplateClass().toInputStream());
+            } catch (ProjectException e) {
+                log.error(e.getMessage(), e);
+                throw new Message("Failed to add generated annotation template class.");
+            }
+        }
+        try {
+            for (JavaClassFile javaClassFile : generated.getCommonClasses()) {
+                String javaInterfacePath = openAPIHelper.makePathToTheGeneratedFile(javaClassFile.getPath());
+                currentProject.addResource(javaInterfacePath, javaClassFile.toInputStream());
+            }
+        } catch (ProjectException e) {
             log.error(e.getMessage(), e);
-            throw new Message("Failed to add data types file.");
+            throw new Message("Failed to add generated common classes.");
         }
+    }
 
-        try (InputStream spreadsheets = generateAlgorithmsFile(projectModel.getSpreadsheetResultModels(),
-            projectModel.getDataModels(),
-            getEnvironmentModel(modelModuleNameParam))) {
+    private void deletePreviouslyGeneratedOpenAPIClasses(RulesProject currentProject) {
+        try {
+            currentProject.deleteArtefactsInFolder(OpenAPIHelper.DEF_JAVA_CLASS_PATH);
+        } catch (ProjectException e) {
+            log.error(e.getMessage(), e);
+            throw new Message(
+                String.format("Failed to remove previously generated file for project %s.", currentProject.getName()));
+        }
+    }
+
+    private void editDescriptorIfNeeded(ProjectDescriptor currentProjectDescriptor,
+            boolean openAPIInfoChanged,
+            boolean classPathChanged,
+            OpenAPI openAPI,
+            boolean annotationTemplateClassesAreGenerated) {
+        ProjectDescriptor newProjectDescriptor = cloneProjectDescriptor(currentProjectDescriptor);
+        clean(newProjectDescriptor);
+        if (openAPIInfoChanged) {
+            newProjectDescriptor.setOpenapi(openAPI);
+        }
+        if (classPathChanged) {
+            List<PathEntry> classpath = newProjectDescriptor.getClasspath();
+            if (annotationTemplateClassesAreGenerated) {
+                PathEntry openAPIClasses = new PathEntry(OpenAPIHelper.DEF_JAVA_CLASS_PATH);
+                if (classpath == null) {
+                    List<PathEntry> generatedClassPath = new ArrayList<>();
+                    generatedClassPath.add(openAPIClasses);
+                    newProjectDescriptor.setClasspath(generatedClassPath);
+                } else {
+                    classpath.add(openAPIClasses);
+                }
+            } else {
+                if (classpath != null) {
+                    classpath.removeIf(pathEntry -> pathEntry.getPath().equals(OpenAPIHelper.DEF_JAVA_CLASS_PATH));
+                }
+            }
+        }
+        save(newProjectDescriptor);
+    }
+
+    private void addAlgorithmsFile(String modelModuleNameParam,
+            String algorithmModulePathParam,
+            RulesProject currentProject,
+            ProjectModel projectModel) {
+        try (InputStream spreadsheets = openAPIHelper.generateAlgorithmsModule(projectModel
+            .getSpreadsheetResultModels(), projectModel.getDataModels(), getEnvironmentModel(modelModuleNameParam))) {
             currentProject.addResource(algorithmModulePathParam, spreadsheets);
         } catch (IOException | ProjectException e) {
             log.error(e.getMessage(), e);
             throw new Message("Failed to add rules file.");
         }
+    }
 
-        refreshProject(currentProject.getRepository().getId(), currentProject.getName());
-
-        if (infoChanged) {
-            ProjectDescriptor newProjectDescriptor = cloneProjectDescriptor(currentProjectDescriptor);
-            clean(newProjectDescriptor);
-            newProjectDescriptor.setOpenapi(openAPI);
-            save(newProjectDescriptor);
+    private void addDataTypesFile(String modelModulePathParam, RulesProject currentProject, ProjectModel projectModel) {
+        try (InputStream dataTypes = openAPIHelper.generateDataTypesFile(projectModel.getDatatypeModels())) {
+            currentProject.addResource(modelModulePathParam, dataTypes);
+        } catch (IOException | ProjectException e) {
+            log.error(e.getMessage(), e);
+            throw new Message("Failed to add data types file.");
         }
-
     }
 
     private void validatePaths(String algorithmModulePathParam,
@@ -921,46 +1017,59 @@ public class ProjectBean {
         return openAPIFile;
     }
 
-    private void removeExistingFile(Module existingModule, RulesProject currentProject, String errorMessage) {
-        AProjectArtefact file = null;
+    private void deleteExistingExcelFile(Module existingModule, RulesProject currentProject, String errorMessage) {
+        AProjectArtefact artefact = null;
         try {
             if (existingModule.getRulesRootPath() != null) {
-                file = currentProject
+                artefact = currentProject
                     .getArtefactByPath(new ArtefactPathImpl(getArtefactPath(existingModule.getRulesRootPath().getPath(),
                         studio.getCurrentProject().getFolderPath())));
             }
         } catch (ProjectException e) {
             log.warn("Existing file wasn't found in module {}", existingModule.getName(), e);
         }
-        removePreviouslyGeneratedFile(file, errorMessage);
+        if (artefact != null) {
+            try {
+                currentProject.deleteArtefact(artefact.getInternalPath());
+            } catch (ProjectException e) {
+                log.error(errorMessage);
+                throw new Message(errorMessage);
+            }
+        }
     }
 
     private void checkPath(String path) {
-        File existingArtefact = new File(studio.getCurrentProjectDescriptor().getProjectFolder(), path);
-        if (existingArtefact.exists()) {
+        Path existingArtefact = studio.getCurrentProjectDescriptor().getProjectFolder().resolve(path);
+        if (Files.exists(existingArtefact)) {
             throw new Message("Artefact with the path " + path + " already exists.");
         }
     }
 
-    private void editRulesDeploy(RulesProject currentProject, ProjectModel projectModel) {
-        try {
-            configureSerializer();
-            modifyRulesDeploy(currentProject, projectModel);
-        } catch (ProjectException | IOException e) {
-            log.error("Can't modify rules deploy file to the project.");
-            throw new Message("Failed to modify rules deploy xml file.");
-        }
-    }
-
-    private void configureRulesDeploy(RulesProject currentProject, ProjectModel projectModel) {
+    private void editOrCreateRulesDeploy(RulesProject currentProject,
+            ProjectModel projectModel,
+            OpenAPIGeneratedClasses generatedClasses,
+            boolean rulesDeployExists) {
         try {
             configureSerializer();
         } catch (IOException e) {
-            log.error("There was an error with configuring the serializer.");
-            throw new Message("Failed to create rules deploy xml file.");
+            log.error("Error was occurred during serializer configuration.");
         }
-        try (ByteArrayInputStream rulesDeployInputStream = generateRulesDeployFile(projectModel)) {
-            currentProject.addResource(RULES_DEPLOY_XML, rulesDeployInputStream);
+        try {
+            if (rulesDeployExists) {
+                AProjectResource artifact = (AProjectResource) currentProject.getArtefact(RULES_DEPLOY_XML);
+                try (InputStream rulesDeployContent = artifact.getContent()) {
+                    RulesDeploy rulesDeploy = rulesDeploySerializerFactory
+                        .getSerializer(SupportedVersion.getLastVersion())
+                        .deserialize(rulesDeployContent);
+                    artifact.setContent(openAPIHelper
+                        .editOrCreateRulesDeploy(rulesDeploySerializer, projectModel, generatedClasses, rulesDeploy));
+                }
+            } else {
+                try (ByteArrayInputStream rulesDeployInputStream = openAPIHelper
+                    .editOrCreateRulesDeploy(rulesDeploySerializer, projectModel, generatedClasses, null)) {
+                    currentProject.addResource(RULES_DEPLOY_XML, rulesDeployInputStream);
+                }
+            }
         } catch (ProjectException | IOException e) {
             log.error("Can't add rules deploy file to the project.");
             throw new Message("Failed to add rules deploy xml file.");
@@ -980,63 +1089,17 @@ public class ProjectBean {
         return projectModel;
     }
 
-    private ByteArrayInputStream generateRulesDeployFile(ProjectModel projectModel) {
-        RulesDeploy rd = new RulesDeploy();
-        rd.setProvideRuntimeContext(projectModel.isRuntimeContextProvided());
-        rd.setPublishers(new RulesDeploy.PublisherType[] { RulesDeploy.PublisherType.RESTFUL });
-        return new ByteArrayInputStream(rulesDeploySerializer.serialize(rd).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private void modifyRulesDeploy(RulesProject currentProject, ProjectModel projectModel) throws ProjectException,
-                                                                                           IOException {
-        AProjectResource artifact;
-        artifact = (AProjectResource) currentProject.getArtefact(RULES_DEPLOY_XML);
-        try (InputStream rulesDeployContent = artifact.getContent()) {
-            RulesDeploy rulesDeploy = rulesDeploySerializerFactory.getSerializer(SupportedVersion.getLastVersion())
-                .deserialize(rulesDeployContent);
-            rulesDeploy.setProvideRuntimeContext(projectModel.isRuntimeContextProvided());
-            artifact.setContent(new ByteArrayInputStream(
-                rulesDeploySerializer.serialize(rulesDeploy).getBytes(StandardCharsets.UTF_8)));
-        }
-    }
-
-    private void removePreviouslyGeneratedFile(AProjectArtefact file, String errorMessage) {
-        if (file != null) {
-            try {
-                file.delete();
-            } catch (ProjectException e) {
-                throw new Message(errorMessage);
-            }
-        }
-    }
-
     private String getArtefactPath(String filePath, String basePath) {
-        return FileNameFormatter
-            .normalizePath(filePath.substring(filePath.lastIndexOf(basePath) + basePath.length() + 1));
+        if (filePath.startsWith(basePath)) {
+            filePath = filePath.substring(filePath.lastIndexOf(basePath) + basePath.length() + 1);
+        }
+        return FileNameFormatter.normalizePath(filePath);
     }
 
     private EnvironmentModel getEnvironmentModel(String moduleName) {
         EnvironmentModel environmentModel = new EnvironmentModel();
         environmentModel.setDependencies(Collections.singletonList(moduleName));
         return environmentModel;
-    }
-
-    private InputStream generateDataTypesFile(List<DatatypeModel> datatypeModels) throws IOException {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            ExcelFileBuilder.generateDataTypes(datatypeModels, bos);
-            byte[] dtBytes = bos.toByteArray();
-            return new ByteArrayInputStream(dtBytes);
-        }
-    }
-
-    private InputStream generateAlgorithmsFile(List<SpreadsheetModel> spreadsheetModels,
-            List<DataModel> dataModels,
-            EnvironmentModel environmentModel) throws IOException {
-        try (ByteArrayOutputStream sos = new ByteArrayOutputStream()) {
-            ExcelFileBuilder.generateAlgorithmsModule(spreadsheetModels, dataModels, sos, environmentModel);
-            byte[] sprBytes = sos.toByteArray();
-            return new ByteArrayInputStream(sprBytes);
-        }
     }
 
     private void tryLockProject() {
@@ -1096,7 +1159,7 @@ public class ProjectBean {
         if (version == null) {
             version = getSupportedVersion();
         }
-        File projectFolder = studio.getCurrentProjectDescriptor().getProjectFolder();
+        File projectFolder = studio.getCurrentProjectDescriptor().getProjectFolder().toFile();
         projectDescriptorSerializerFactory.setSupportedVersion(projectFolder, version);
 
         serializer = projectDescriptorSerializerFactory.getSerializer(version);
@@ -1389,7 +1452,7 @@ public class ProjectBean {
         }
 
         ProjectDescriptor descriptor = studio.getCurrentProjectDescriptor();
-        return projectDescriptorSerializerFactory.getSupportedVersion(descriptor.getProjectFolder());
+        return projectDescriptorSerializerFactory.getSupportedVersion(descriptor.getProjectFolder().toFile());
     }
 
     public void setSupportedVersion(SupportedVersion supportedVersion) {
@@ -1411,8 +1474,9 @@ public class ProjectBean {
     private ProjectDescriptor getOriginalProjectDescriptor() {
         ProjectDescriptor descriptor = studio.getCurrentProjectDescriptor();
         try {
-            File file = new File(descriptor.getProjectFolder(),
-                ProjectDescriptorBasedResolvingStrategy.PROJECT_DESCRIPTOR_FILE_NAME);
+            File file = descriptor.getProjectFolder()
+                .resolve(ProjectDescriptorBasedResolvingStrategy.PROJECT_DESCRIPTOR_FILE_NAME)
+                .toFile();
             return projectDescriptorManager.readOriginalDescriptor(file);
         } catch (FileNotFoundException ignored) {
             return descriptor;

@@ -16,7 +16,6 @@ import org.openl.rules.project.impl.local.ProjectState;
 import org.openl.rules.repository.api.FileData;
 import org.openl.rules.repository.api.FolderMapper;
 import org.openl.rules.repository.api.Repository;
-import org.openl.rules.repository.exceptions.RRepositoryException;
 import org.openl.rules.workspace.ProjectKey;
 import org.openl.rules.workspace.WorkspaceUser;
 import org.openl.rules.workspace.dtr.DesignTimeRepository;
@@ -27,6 +26,7 @@ import org.openl.rules.workspace.lw.LocalWorkspaceListener;
 public class LocalWorkspaceImpl implements LocalWorkspace {
     private static final Comparator<AProject> PROJECTS_COMPARATOR = (o1, o2) -> o1.getName()
         .compareToIgnoreCase(o2.getName());
+    public static final String LOCAL_ID = "local";
 
     private final WorkspaceUser user;
     private final File location;
@@ -43,12 +43,7 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
         localProjects = new HashMap<>();
 
         localRepository = new LocalRepository(location);
-        try {
-            localRepository.initialize();
-        } catch (RRepositoryException e) {
-            throw new IllegalStateException(e);
-        }
-
+        localRepository.initialize();
         loadProjects();
     }
 
@@ -60,8 +55,7 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
     @Override
     public LocalRepository getRepository(String id) {
         if (id == null) {
-            // For backward compatibility.
-            id = "design";
+            id = LOCAL_ID;
         }
         // Create a new instance with id and name.
         LocalRepository repository = new LocalRepository(localRepository.getRoot());
@@ -72,11 +66,7 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
                 repository.setName(designRepository.getName());
             }
         }
-        try {
-            repository.initialize();
-        } catch (RRepositoryException e) {
-            throw new IllegalStateException(e.getMessage(), e);
-        }
+        repository.initialize();
         return repository;
     }
 
@@ -92,8 +82,7 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
             lp = localProjects.values()
                 .stream()
                 .filter(p -> (repositoryId == null || repositoryId.equals(p.getRepository().getId())) && p.getName()
-                    .toLowerCase()
-                    .equals(name.toLowerCase()))
+                    .equalsIgnoreCase(name))
                 .findFirst()
                 .orElse(null);
         }
@@ -130,8 +119,7 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
             Optional<AProject> lp = localProjects.values()
                 .stream()
                 .filter(p -> (repositoryId == null || repositoryId.equals(p.getRepository().getId())) && p.getName()
-                    .toLowerCase()
-                    .equals(name.toLowerCase()))
+                    .equalsIgnoreCase(name))
                 .findFirst();
             return lp.isPresent();
         }
@@ -150,6 +138,7 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
                 if (fileData == null) {
                     String version = projectState.getProjectVersion();
                     lpi = new AProject(repository, name, version);
+                    repositoryPath = "<local-path>/" + name;
                 } else {
                     FileMappingData mappingData = fileData.getAdditionalData(FileMappingData.class);
                     if (mappingData != null) {
@@ -164,9 +153,10 @@ public class LocalWorkspaceImpl implements LocalWorkspace {
                             if (mappedPath == null) {
                                 mappedName = mapper.getMappedName(name, repositoryPath);
                             } else {
-                                mappedName = mappedPath.startsWith(rulesLocation) ?
-                                             mappedPath.substring(rulesLocation.length()) :
-                                             mappedPath;
+                                mappedName = mappedPath.startsWith(rulesLocation)
+                                                                                  ? mappedPath
+                                                                                      .substring(rulesLocation.length())
+                                                                                  : mappedPath;
                             }
                         }
                         mappingData.setExternalPath(rulesLocation + mappedName);

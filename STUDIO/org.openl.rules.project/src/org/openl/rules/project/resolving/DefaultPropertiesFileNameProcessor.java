@@ -31,7 +31,7 @@ public class DefaultPropertiesFileNameProcessor implements PropertiesFileNamePro
     private static final String CW_STATE_VALUE = "CW";
     private static final String ALL_KEYWORD = "Any";
 
-    private Set<String> propertyNames = new LinkedHashSet<>(0);
+    private final Set<String> propertyNames = new LinkedHashSet<>(0);
     private final Map<String, SimpleDateFormat> dateFormats;
     private final Pattern fileNameRegexpPattern;
     private final String pattern;
@@ -121,8 +121,8 @@ public class DefaultPropertiesFileNameProcessor implements PropertiesFileNamePro
                 }
                 final String[] propertyGroup = multyPropertyNames.split(",");
                 Class<?> returnType = null;
-                String pattern = null;
-                String finalPattern = null;
+                String pattern;
+                StringBuilder finalPattern = null;
                 for (String propertyName : propertyGroup) {
                     if (!TablePropertyDefinitionUtils.isPropertyExist(propertyName)) {
                         throw new InvalidFileNamePatternException(
@@ -147,12 +147,12 @@ public class DefaultPropertiesFileNameProcessor implements PropertiesFileNamePro
                             String.format("Invalid file name pattern at: %s.", propertyMatch));
                     }
                     if (finalPattern == null) {
-                        finalPattern = pattern;
+                        finalPattern = new StringBuilder(pattern);
                     }
-                    finalPattern = "(?<" + propertyName + ">" + finalPattern + ")";
+                    finalPattern = new StringBuilder("(?<" + propertyName + ">" + finalPattern + ")");
                 }
 
-                fileNameRegexpPattern = fileNameRegexpPattern.replace(propertyMatch, finalPattern);
+                fileNameRegexpPattern = fileNameRegexpPattern.replace(propertyMatch, finalPattern.toString());
                 start = matcher.end();
             } else {
                 start = fileNamePattern.length();

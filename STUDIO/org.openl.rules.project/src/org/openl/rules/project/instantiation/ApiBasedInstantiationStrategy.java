@@ -1,16 +1,11 @@
 package org.openl.rules.project.instantiation;
 
-import java.io.File;
-import java.net.URL;
-
 import org.openl.dependency.IDependencyManager;
 import org.openl.rules.project.model.MethodFilter;
 import org.openl.rules.project.model.Module;
 import org.openl.rules.runtime.InterfaceClassGeneratorImpl;
 import org.openl.rules.runtime.RulesEngineFactory;
 import org.openl.source.IOpenSourceCodeModule;
-import org.openl.source.impl.ModuleFileSourceCodeModule;
-import org.openl.source.impl.URLSourceCodeModule;
 import org.openl.util.CollectionUtils;
 
 /**
@@ -68,26 +63,20 @@ public class ApiBasedInstantiationStrategy extends SingleModuleInstantiationStra
         }
     }
 
-    private IOpenSourceCodeModule getSourceCode(Module module) {
-        File sourceFile = new File(getModule().getRulesRootPath().getPath());
-        URL url = URLSourceCodeModule.toUrl(sourceFile);
-        return new ModuleFileSourceCodeModule(url, getModule().getName());
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     protected RulesEngineFactory<?> getEngineFactory() {
         Class<Object> serviceClass = (Class<Object>) getServiceClass();
         if (engineFactory == null) {
 
-            IOpenSourceCodeModule source = getSourceCode(getModule());
+            Module module = getModule();
+            IOpenSourceCodeModule source = new ModulePathSourceCodeModule(module.getRulesPath(), module.getName());
             source.setParams(prepareExternalParameters());
 
             engineFactory = new RulesEngineFactory<>(source, serviceClass);
 
             // Information for interface generation, if generation required.
-            Module m = getModule();
-            MethodFilter methodFilter = m.getMethodFilter();
+            MethodFilter methodFilter = module.getMethodFilter();
             if (methodFilter != null && (CollectionUtils.isNotEmpty(methodFilter.getExcludes()) || CollectionUtils
                 .isNotEmpty(methodFilter.getIncludes()))) {
                 String[] includes = new String[] {};

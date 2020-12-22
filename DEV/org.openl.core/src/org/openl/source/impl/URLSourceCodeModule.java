@@ -5,7 +5,11 @@
  */
 package org.openl.source.impl;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Objects;
@@ -16,7 +20,7 @@ import org.openl.util.RuntimeExceptionWrapper;
  * @author snshor
  */
 public class URLSourceCodeModule extends ASourceCodeModule {
-    private URL url;
+    private final URL url;
 
     public URLSourceCodeModule(URL url) {
         this.url = url;

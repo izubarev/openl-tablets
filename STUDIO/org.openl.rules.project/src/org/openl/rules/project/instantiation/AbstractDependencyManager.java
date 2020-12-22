@@ -4,19 +4,16 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import org.openl.OpenClassUtil;
-import org.openl.binding.impl.component.ComponentOpenClass;
 import org.openl.classloader.OpenLBundleClassLoader;
 import org.openl.dependency.CompiledDependency;
 import org.openl.dependency.IDependencyManager;
 import org.openl.exception.OpenLCompilationException;
-import org.openl.rules.lang.xls.XlsBinder;
 import org.openl.rules.project.model.ProjectDependencyDescriptor;
 import org.openl.rules.project.model.ProjectDescriptor;
 import org.openl.syntax.code.Dependency;
 import org.openl.syntax.code.DependencyType;
 import org.openl.syntax.code.IDependency;
 import org.openl.syntax.impl.IdentifierNode;
-import org.openl.types.IOpenClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,7 +95,6 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         this.rootClassLoader = rootClassLoader;
         this.executionMode = executionMode;
         this.externalParameters = new HashMap<>();
-        this.externalParameters.put(XlsBinder.DISABLED_CLEAN_UP, Boolean.TRUE);
         if (externalParameters != null) {
             this.externalParameters.putAll(externalParameters);
         }
@@ -201,23 +197,6 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
                 String.format("Multiple modules with the same name '%s' are found.", dependencyName));
         }
         return loaders.iterator().next();
-    }
-
-    @Override
-    public void clearOddDataForExecutionMode() {
-        if (isExecutionMode() && getCompilationStack().isEmpty()) {
-            for (Collection<IDependencyLoader> depLoaders : getDependencyLoaders().values()) {
-                for (IDependencyLoader depLoader : depLoaders) {
-                    CompiledDependency compiledDependency = depLoader.getRefToCompiledDependency();
-                    if (compiledDependency != null) {
-                        IOpenClass openClass = compiledDependency.getCompiledOpenClass().getOpenClassWithErrors();
-                        if (openClass instanceof ComponentOpenClass) {
-                            ((ComponentOpenClass) openClass).clearOddDataForExecutionMode();
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private static String buildCircularDependencyDetails(String dependencyName, Deque<String> compilationStack) {

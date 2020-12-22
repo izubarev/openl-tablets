@@ -13,10 +13,9 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.openl.OpenL;
 import org.openl.engine.OpenLManager;
-import org.openl.exception.OpenLRuntimeException;
 import org.openl.meta.DoubleValue;
 import org.openl.source.impl.StringSourceCodeModule;
-import org.openl.syntax.exception.CompositeSyntaxNodeException;
+import org.openl.syntax.exception.CompositeOpenlException;
 
 public class RunTest {
     private static Object runExpression(String expression) {
@@ -39,15 +38,15 @@ public class RunTest {
         });
     }
 
-    private static void assertError(String expr, Class<? extends Throwable> expected) {
-        Throwable ex = null;
+    private static void assertError(String expr, String expected) {
         try {
             runExpression(expr);
-        } catch (Throwable t) {
-            ex = t;
+            Assert.fail("Non-reachable");
+        } catch (CompositeOpenlException t) {
+            Assert.assertEquals(expected, t.getErrors()[0].getMessage());
+        } catch (Exception t) {
+            Assert.assertEquals(expected, t.getMessage());
         }
-        Assert.assertNotNull(ex);
-        Assert.assertEquals(expected, ex.getClass());
     }
 
     @Test
@@ -82,7 +81,7 @@ public class RunTest {
         assertEquals("String x = \"abc\";String y = \"abc\"; x < y", false);
         assertEquals("String x = \"abc\";String y = \"abc\"; x <= y", true);
 
-        assertError("String x = \"abc\";Integer y = 10; x <= y", CompositeSyntaxNodeException.class);
+        assertError("String x = \"abc\";Integer y = 10; x <= y", "Operator 'le(java.lang.String, java.lang.Integer)' is not found.");
     }
 
     @Test
@@ -108,23 +107,22 @@ public class RunTest {
         assertEquals("String x=\"abc\"; x == null || x.length() < 10", true);
         assertEquals("String x=\"abc\"; x != null && x.length() < 10", true);
 
-        assertEquals("int x = 5; x += 4", new Integer(9));
+        assertEquals("int x = 5; x += 4", 9);
         assertEquals(
-            "DoubleValue d1 = new DoubleValue(5); DoubleValue d2 = new DoubleValue(4); d1 += d2; d1.getValue()",
-            new Double(9));
-        assertEquals("int i=0; for(int j=0; j < 10; ) {i += j;j++;} i", new Integer(45));
+            "DoubleValue d1 = new DoubleValue(5); DoubleValue d2 = new DoubleValue(4); d1 += d2; d1.getValue()", 9.0);
+        assertEquals("int i=0; for(int j=0; j < 10; ) {i += j;j++;} i", 45);
 
         // Testing new implementation of s1 == s2 for Strings. To achieve old
         // identity test Strings must be upcasted to Object
-        assertEquals("String a=\"a\"; String b = \"b\"; a + b == a + 'b'", new Boolean(true));
-        assertEquals("String a=\"a\"; String b = \"b\"; a + b == a + 'c'", new Boolean(false));
-        assertEquals("String a=\"a\"; String b = \"b\"; a + b != a + 'b'", new Boolean(false));
-        assertEquals("String a=\"a\"; String b = \"b\"; a + b != a + 'c'", new Boolean(true));
-        assertEquals("String a=\"a\"; String b = \"b\"; (Object)(a + b) == (Object)(a + 'b')", new Boolean(true));
-        assertEquals("String a=\"a\"; String b = \"b\"; (Object)(a + b) ==== (Object)(a + 'b')", new Boolean(false));
+        assertEquals("String a=\"a\"; String b = \"b\"; a + b == a + 'b'", Boolean.TRUE);
+        assertEquals("String a=\"a\"; String b = \"b\"; a + b == a + 'c'", Boolean.FALSE);
+        assertEquals("String a=\"a\"; String b = \"b\"; a + b != a + 'b'", Boolean.FALSE);
+        assertEquals("String a=\"a\"; String b = \"b\"; a + b != a + 'c'", Boolean.TRUE);
+        assertEquals("String a=\"a\"; String b = \"b\"; (Object)(a + b) == (Object)(a + 'b')", Boolean.TRUE);
+        assertEquals("String a=\"a\"; String b = \"b\"; (Object)(a + b) ==== (Object)(a + 'b')", Boolean.FALSE);
 
-        assertEquals("boolean a=true; boolean b = false; a == !b", new Boolean(true));
-        assertEquals("boolean a=true; boolean b = false; a != b", new Boolean(true));
+        assertEquals("boolean a=true; boolean b = false; a == !b", Boolean.TRUE);
+        assertEquals("boolean a=true; boolean b = false; a != b", Boolean.TRUE);
 
         assertEquals("Integer x = 1; \"aaa\".substring(x)", "aaa".substring(1));
 
@@ -252,9 +250,9 @@ public class RunTest {
             "aaabbddZZZ");
 
         assertError("String[] ary = {\"bb\", \"ddd\", \"aaa\"}; ary[(String s) !@ s.getDay() < 5]",
-            CompositeSyntaxNodeException.class);
+            "Method 'getDay()' is not found.");
         assertError("String[] ary = {\"bb\", \"ddd\", \"aaa\"}; ary[(Date d) !@ d.getDay() < 5]",
-            CompositeSyntaxNodeException.class);
+            "Cannot cast 'java.lang.String' to 'java.util.Date'.");
 
         assertEquals("String[] ary = {\"a\", \"b\",\"c\" ,\"a\",\"d\",\"b\",}; ary[(x)~@ x][(str)*@str[0]].length", 4);
 
@@ -266,7 +264,7 @@ public class RunTest {
 
         assertError(
             "List list = new ArrayList(); list.add(\"bbccdd\"); list.add(\"dddee\");list.add(\"dddeedd\"); list[(Date d)!@ d.getDay() < 6]",
-            OpenLRuntimeException.class);
+            "Failure in the method: `bbccdd`.getDay(). Cause: object is not an instance of declaring class");
         assertEquals(
             "List list = new ArrayList(); list.add(\"bbccdd\"); list.add(\"dddee\");list.add(\"dddeedd\"); list[(String s)!@ s.contains(\"ee\")]",
             "dddee");
@@ -344,7 +342,7 @@ public class RunTest {
             "List list = new ArrayList(); list.add(\"bb\");list.add( \"ddd\");list.add(\"aaa\"); list[(String s)^@s]",
             new String[] { "aaa", "bb", "ddd" });
         assertError("List list = new ArrayList(); list.add(\"bb\");list.add( \"ddd\");list.add(\"aaa\"); list[^@s]",
-            CompositeSyntaxNodeException.class);
+            "Identifier 's' is not found.");
     }
 
     @Test
@@ -413,10 +411,10 @@ public class RunTest {
         assertEquals("10d.class", double.class);
         assertEquals("int x = 5; x.class", int.class);
 
-        assertError("String.length()", CompositeSyntaxNodeException.class);
-        assertError("Double.isNaN()", CompositeSyntaxNodeException.class);
-        assertError("Double.getClass()", CompositeSyntaxNodeException.class);
-        assertError("int.getClass()", CompositeSyntaxNodeException.class);
+        assertError("String.length()", "Accessing to non-static method from a static class.");
+        assertError("Double.isNaN()", "Accessing to non-static method from a static class.");
+        assertError("Double.getClass()", "Accessing to non-static method from a static class.");
+        assertError("int.getClass()", "Method 'getClass()' is not found.");
     }
 
     @Test

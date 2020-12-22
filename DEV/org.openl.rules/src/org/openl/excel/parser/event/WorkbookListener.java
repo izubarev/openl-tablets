@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,7 +44,7 @@ public class WorkbookListener implements HSSFListener {
 
     private final List<EventSheetDescriptor> sheets = new ArrayList<>();
     private final ParserDateUtil parserDateUtil = new ParserDateUtil();
-    private Map<String, Object[][]> cellsMap = new HashMap<>();
+    private final Map<String, Object[][]> cellsMap = new HashMap<>();
 
     private boolean use1904Windowing = false;
 
@@ -88,7 +89,7 @@ public class WorkbookListener implements HSSFListener {
                     sheetIndex++;
 
                     if (!sheetsSorted) {
-                        Collections.sort(sheets, (o1, o2) -> o1.getOffset() - o2.getOffset());
+                        sheets.sort(Comparator.comparingInt(EventSheetDescriptor::getOffset));
                         sheetsSorted = true;
                     }
                 }

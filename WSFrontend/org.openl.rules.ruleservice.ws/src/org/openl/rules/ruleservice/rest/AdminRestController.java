@@ -11,6 +11,8 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.openl.info.OpenLVersion;
+import org.openl.info.SysInfo;
 import org.openl.rules.ruleservice.publish.JAXRSRuleServicePublisher;
 import org.openl.rules.ruleservice.servlet.ServiceInfoProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +58,25 @@ public class AdminRestController {
         info.put("services", serviceManager.getServicesInfo());
         info.put("noWadlServices", jaxrsRuleServicePublisher.listNoWadlServices());
         return Response.ok(info).build();
+    }
+
+    /**
+     * @return a list of JVM metrics for monitoring purposes.
+     */
+    @GET
+    @Path("/info/sys.json")
+    public Response getSysInfo() {
+        return Response.ok(SysInfo.get()).build();
+    }
+
+
+    /**
+     * @return a list of properties about the OpenL build.
+     */
+    @GET
+    @Path("/info/openl.json")
+    public Response getOpenLInfo() {
+        return Response.ok(OpenLVersion.get()).build();
     }
 
     /**

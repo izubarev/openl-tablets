@@ -10,11 +10,11 @@ import org.openl.gen.TypeDescription;
 
 public abstract class DefaultBeanByteCodeWriter implements BeanByteCodeWriter {
 
-    private String beanNameWithPackage;
+    private final String beanNameWithPackage;
 
-    private TypeDescription parentType;
+    private final TypeDescription parentType;
 
-    private Map<String, FieldDescription> beanFields;
+    private final Map<String, FieldDescription> beanFields;
 
     /**
      *
@@ -52,10 +52,7 @@ public abstract class DefaultBeanByteCodeWriter implements BeanByteCodeWriter {
     @Override
     public String toString() {
         // For debugging purpose
-        StringBuilder strBuilder = new StringBuilder();
-        strBuilder.append(this.getClass().getSimpleName());
-        strBuilder.append(" for ");
-        strBuilder.append(beanNameWithPackage);
-        return strBuilder.toString();
+        String strBuilder = this.getClass().getSimpleName() + " for " + beanNameWithPackage;
+        return strBuilder;
     }
 }

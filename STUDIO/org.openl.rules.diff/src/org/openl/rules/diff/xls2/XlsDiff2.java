@@ -1,7 +1,13 @@
 package org.openl.rules.diff.xls2;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import org.openl.OpenClassUtil;
 import org.openl.binding.IBoundCode;
@@ -43,7 +49,7 @@ public class XlsDiff2 {
     // Same Sheet, Header
     private static final String GUESS_MAY_BE_SAME = "4-mayBeSame";
 
-    private Map<String, List<DiffPair>> diffGuess;
+    private final Map<String, List<DiffPair>> diffGuess;
 
     public XlsDiff2() {
         // TreeMap -- Key as a weight

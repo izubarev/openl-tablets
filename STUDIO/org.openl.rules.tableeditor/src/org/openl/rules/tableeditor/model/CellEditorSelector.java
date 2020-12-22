@@ -29,7 +29,7 @@ import org.openl.util.formatters.IFormatter;
 // TODO Reimplement
 public class CellEditorSelector {
 
-    private ICellEditorFactory factory = new CellEditorFactory();
+    private final ICellEditorFactory factory = new CellEditorFactory();
 
     public ICellEditor selectEditor(ICell cell, CellMetaInfo meta) {
         if (cell.getFormula() != null) {
@@ -50,7 +50,7 @@ public class CellEditorSelector {
             Class<?> instanceClass = dataType.getInstanceClass();
 
             if (domain instanceof EnumDomain) {
-                Object[] allObjects = ((EnumDomain<?>) domain).getEnum().getAllObjects();
+                Object[] allObjects = ((EnumDomain<?>) domain).getAllObjects();
 
                 if (allObjects instanceof String[]) {
                     String[] allObjectValues = (String[]) allObjects;

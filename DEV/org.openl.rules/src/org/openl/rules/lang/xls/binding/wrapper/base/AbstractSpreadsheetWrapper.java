@@ -170,13 +170,13 @@ public class AbstractSpreadsheetWrapper extends Spreadsheet {
     }
 
     @Override
-    public boolean isDetailedPlainModel() {
-        return delegate.isDetailedPlainModel();
+    public boolean isTableStructureDetails() {
+        return delegate.isTableStructureDetails();
     }
 
     @Override
-    public void setDetailedPlainModel(boolean detailedPlainModel) {
-        delegate.setDetailedPlainModel(detailedPlainModel);
+    public void getTableStructureDetails(boolean tableStructureDetails) {
+        delegate.getTableStructureDetails(tableStructureDetails);
     }
 
     @Override
@@ -200,8 +200,8 @@ public class AbstractSpreadsheetWrapper extends Spreadsheet {
     }
 
     @Override
-    public void removeDebugInformation() {
-        delegate.removeDebugInformation();
+    public void clearForExecutionMode() {
+        delegate.clearForExecutionMode();
     }
 
     @Override

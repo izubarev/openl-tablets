@@ -27,7 +27,7 @@ class HttpData {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final String firstLine;
-    private final Map<String, String> headers = new TreeMap<>(String::compareToIgnoreCase);
+    private final Map<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
     private final byte[] body;
     private final String resource;
 
@@ -43,7 +43,7 @@ class HttpData {
             return 200; // OK
         }
         String[] status = firstLine.split(" ", 3);
-        return Integer.valueOf(status[1]);
+        return Integer.parseInt(status[1]);
     }
 
     static HttpData readFile(String resource) throws IOException {
@@ -117,7 +117,7 @@ class HttpData {
                     Comparators.xml("Difference", expected.body, this.body);
                     break;
                 case "application/json":
-                    JsonNode actualNode = null;
+                    JsonNode actualNode;
                     actualNode = OBJECT_MAPPER.readTree(this.body);
                     JsonNode expectedNode = OBJECT_MAPPER.readTree(expected.body);
                     Comparators.compareJsonObjects(expectedNode, actualNode, "");
@@ -176,7 +176,7 @@ class HttpData {
     }
 
     private static Map<String, String> readHeaders(InputStream input) throws IOException {
-        TreeMap<String, String> headers = new TreeMap<>(String::compareToIgnoreCase);
+        TreeMap<String, String> headers = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 
         String header = readLine(input);
         while (!header.isEmpty()) {

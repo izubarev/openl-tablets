@@ -125,7 +125,7 @@ public class LocalUploadController {
     private boolean hasCorrespondingDesignProject(DesignTimeRepository dtr, AProject localProject) throws IOException {
         String repoId = localProject.getRepository().getId();
         Repository repository = dtr.getRepository(repoId);
-        if (repository.supports().mappedFolders()) {
+        if (repository != null && repository.supports().mappedFolders()) {
             FileData fileData = localProject.getFileData();
             FileMappingData mappingData = fileData.getAdditionalData(FileMappingData.class);
             if (mappingData != null) {
@@ -135,7 +135,7 @@ public class LocalUploadController {
                 return false;
             }
         } else {
-            return dtr.hasProject(repositoryId, localProject.getName());
+            return dtr.hasProject(repoId, localProject.getName());
         }
     }
 
@@ -166,11 +166,12 @@ public class LocalUploadController {
         this.projectFolder = folder;
     }
 
-    private static final Comparator<File> fileNameComparator = (f1, f2) -> {
-        String name1 = f1.getName();
-        String name2 = f2.getName();
-        return name1.compareToIgnoreCase(name2);
-    };
+    /**
+     * EPBDS-8384: JSF beans discovery does not work if the bean contains static field with lambda expression. Possibly
+     * need to upgrade JSF version to fully support java 8. Until then use anonymous class instead.
+     */
+    private static final Comparator<File> fileNameComparator = Comparator.comparing(File::getName,
+        String.CASE_INSENSITIVE_ORDER);
 
     public String upload() {
         if (StringUtils.isBlank(repositoryId)) {

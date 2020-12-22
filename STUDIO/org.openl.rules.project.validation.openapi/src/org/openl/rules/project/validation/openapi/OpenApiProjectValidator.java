@@ -2,15 +2,7 @@ package org.openl.rules.project.validation.openapi;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
@@ -36,7 +28,6 @@ import org.openl.rules.project.model.RulesDeploy;
 import org.openl.rules.project.resolving.ProjectResource;
 import org.openl.rules.project.resolving.ProjectResourceLoader;
 import org.openl.rules.project.validation.AbstractServiceInterfaceProjectValidator;
-import org.openl.rules.project.validation.base.ValidatedCompiledOpenClass;
 import org.openl.rules.ruleservice.publish.common.MethodUtils;
 import org.openl.rules.ruleservice.publish.jaxrs.JAXRSOpenLServiceEnhancerHelper;
 import org.openl.rules.ruleservice.publish.jaxrs.ParameterIndex;
@@ -50,9 +41,11 @@ import org.openl.types.IOpenField;
 import org.openl.types.IOpenMethod;
 import org.openl.types.java.JavaOpenClass;
 import org.openl.types.java.JavaOpenField;
+import org.openl.types.java.JavaOpenMethod;
 import org.openl.util.ClassUtils;
 import org.openl.util.CollectionUtils;
 import org.openl.util.StringUtils;
+import org.openl.validation.ValidatedCompiledOpenClass;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -101,7 +94,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                 projectDescriptor,
                 projectDescriptor.getOpenapi().getPath());
             if (projectResource == null) {
-                validatedCompiledOpenClass.addValidationMessage(OpenLMessagesUtils
+                validatedCompiledOpenClass.addMessage(OpenLMessagesUtils
                     .newErrorMessage(String.format(OPEN_API_VALIDATION_MSG_PREFIX + "File '%s' is not found.",
                         projectDescriptor.getOpenapi().getPath())));
             }
@@ -127,7 +120,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
             OpenAPI openAPI = openApiParser.readLocation(projectResource.getUrl().toString(), null, options)
                 .getOpenAPI();
             if (openAPI == null) {
-                validatedCompiledOpenClass.addValidationMessage(OpenLMessagesUtils.newErrorMessage(
+                validatedCompiledOpenClass.addMessage(OpenLMessagesUtils.newErrorMessage(
                     String.format(OPEN_API_VALIDATION_MSG_PREFIX + "Failed to read file '%s'.", openApiFile)));
             }
             return openAPI;
@@ -155,9 +148,24 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
         ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
         try {
             Thread.currentThread().setContextClassLoader(serviceClassLoader);
-            Class<?> serviceClass = resolveInterface(projectDescriptor,
-                rulesInstantiationStrategy,
-                validatedCompiledOpenClass);
+            Class<?> serviceClass;
+            try {
+                serviceClass = resolveInterface(projectDescriptor,
+                    rulesInstantiationStrategy,
+                    validatedCompiledOpenClass);
+            } catch (Exception e) {
+                validatedCompiledOpenClass.addMessage(OpenLMessagesUtils.newErrorMessage(
+                    OPEN_API_VALIDATION_MSG_PREFIX + String.format("Failed to build an interface for the project.%s",
+                        StringUtils.isNotBlank(e.getMessage()) ? " " + e.getMessage() : StringUtils.EMPTY)));
+                return validatedCompiledOpenClass;
+            }
+
+            RulesDeploy rulesDeploy = getRulesDeploy(projectDescriptor, compiledOpenClass);
+            context.setRulesDeploy(rulesDeploy);
+
+            ObjectMapper objectMapper = createObjectMapper(context);
+            context.setObjectMapper(objectMapper);
+
             Class<?> enhancedServiceClass;
             try {
                 enhancedServiceClass = enhanceWithJAXRS(context,
@@ -166,13 +174,9 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                     serviceClass,
                     serviceClassLoader);
             } catch (Exception e) {
-                validatedCompiledOpenClass
-                    .addValidationMessage(
-                        OpenLMessagesUtils.newErrorMessage(OPEN_API_VALIDATION_MSG_PREFIX + String
-                            .format("Failed to build an interface for the project.%s",
-                                org.apache.commons.lang3.StringUtils
-                                    .isNotBlank(e.getMessage()) ? " " + e.getMessage()
-                                                                : org.apache.commons.lang3.StringUtils.EMPTY)));
+                validatedCompiledOpenClass.addMessage(OpenLMessagesUtils.newErrorMessage(
+                    OPEN_API_VALIDATION_MSG_PREFIX + String.format("Failed to build an interface for the project.%s",
+                        StringUtils.isNotBlank(e.getMessage()) ? " " + e.getMessage() : StringUtils.EMPTY)));
                 return validatedCompiledOpenClass;
             }
             context.setServiceClass(enhancedServiceClass);
@@ -180,15 +184,11 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                 context
                     .setMethodMap(JAXRSOpenLServiceEnhancerHelper.buildMethodMap(serviceClass, enhancedServiceClass));
             } catch (Exception e) {
-                validatedCompiledOpenClass.addValidationMessage(OpenLMessagesUtils
+                validatedCompiledOpenClass.addMessage(OpenLMessagesUtils
                     .newErrorMessage(OPEN_API_VALIDATION_MSG_PREFIX + "Failed to build an interface for the project."));
                 return validatedCompiledOpenClass;
             }
             OpenAPI actualOpenAPI;
-            RulesDeploy rulesDeploy = getRulesDeploy(projectDescriptor, compiledOpenClass);
-            context.setRulesDeploy(rulesDeploy);
-            ObjectMapper objectMapper = createObjectMapper(context);
-            context.setObjectMapper(objectMapper);
             synchronized (OpenApiRulesCacheWorkaround.class) {
                 OpenApiObjectMapperHack openApiObjectMapperHack = new OpenApiObjectMapperHack();
                 try {
@@ -201,8 +201,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                     if (StringUtils.isNotBlank(e.getMessage())) {
                         message.append(" ").append(e.getMessage());
                     }
-                    validatedCompiledOpenClass
-                        .addValidationMessage(OpenLMessagesUtils.newErrorMessage(message.toString()));
+                    validatedCompiledOpenClass.addMessage(OpenLMessagesUtils.newErrorMessage(message.toString()));
                     return validatedCompiledOpenClass;
                 } finally {
                     OpenApiRulesCacheWorkaround.reset();
@@ -255,7 +254,9 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
             "unknown",
             isResolveMethodParameterNames(),
             provideRuntimeContext,
-            provideVariations);
+            provideVariations,
+            null,
+            context.getObjectMapper());
     }
 
     private Pair<String, PathItem> findPathItem(io.swagger.v3.oas.models.Paths paths, String path) {
@@ -284,10 +285,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                     if (method == null) {
                         continue;
                     }
-                    IOpenMethod openMethod = MethodUtils.findRulesMethod(context.getOpenClass(),
-                        context.getMethodMap().get(method),
-                        context.isProvideRuntimeContext(),
-                        context.isProvideVariations());
+                    IOpenMethod openMethod = getRulesMethod(context, method);
                     if (expectedPath != null && expectedPath.getRight() != null) {
                         context.setExpectedPath(expectedPath.getKey());
                         context.setExpectedPathItem(expectedPath.getValue());
@@ -332,6 +330,34 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                     context.setExpectedPathItem(null);
                 }
             }
+        }
+    }
+
+    private IOpenMethod getRulesMethod(Context context, Method method) {
+        IOpenMethod openMethod = MethodUtils.findRulesMethod(context.getOpenClass(),
+            context.getMethodMap().get(method),
+            context.isProvideRuntimeContext(),
+            context.isProvideVariations());
+        if (openMethod != null) {
+            return openMethod;
+        } else {
+            if (method.getParameterCount() == 0 && method.getName().startsWith("get")) {
+                Optional<IOpenField> foundOpenField = context.getOpenClass()
+                    .getFields()
+                    .stream()
+                    .filter(e -> method.getName().equals(ClassUtils.getter(e.getName())))
+                    .findFirst();
+                if (foundOpenField.isPresent()) {
+                    IOpenField openField = foundOpenField.get();
+                    return new JavaOpenMethod(method) {
+                        @Override
+                        public IOpenClass getType() {
+                            return openField.getType();
+                        }
+                    };
+                }
+            }
+            return null;
         }
     }
 
@@ -657,7 +683,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
         String s = path;
         int i = 0;
         while (i < index) {
-            s = s.substring(s.indexOf("}"));
+            s = s.substring(s.indexOf("}") + 1);
             i++;
         }
         s = s.substring(s.indexOf("{") + 1);
@@ -689,6 +715,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                 actualParameter.getSchema(),
                 expectedParameter.getSchema(),
                 parameterType,
+                new HashSet<>(),
                 new HashSet<>());
         } catch (DifferentTypesException e) {
             OpenApiProjectValidatorMessagesUtils.addMethodError(context,
@@ -750,6 +777,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                     actualMediaType.getSchema(),
                     expectedMediaType.getSchema(),
                     returnType,
+                    new HashSet<>(),
                     new HashSet<>());
             } catch (DifferentTypesException e) {
                 String methodName = openMethod != null ? openMethod.getName() : method.getName();
@@ -990,6 +1018,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                         actualParameterSchema,
                         expectedParameterSchema,
                         parameterType,
+                        new HashSet<>(),
                         new HashSet<>());
                 } catch (DifferentTypesException e) {
                     OpenApiProjectValidatorMessagesUtils.addMethodError(context,
@@ -1120,12 +1149,40 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
         return null;
     }
 
-    private static class Key {
+    private static class KeyBySchemasRef {
+        private final IOpenClass openClass;
+        private final String actualSchemaRef;
+        private final String expectedSchemaRef;
+
+        public KeyBySchemasRef(IOpenClass openClass, String actualSchemaRef, String expectedSchemaRef) {
+            this.openClass = openClass;
+            this.actualSchemaRef = actualSchemaRef;
+            this.expectedSchemaRef = expectedSchemaRef;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            KeyBySchemasRef key = (KeyBySchemasRef) o;
+            return Objects.equals(openClass, key.openClass) && Objects.equals(actualSchemaRef,
+                key.actualSchemaRef) && Objects.equals(expectedSchemaRef, key.expectedSchemaRef);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(openClass, actualSchemaRef, expectedSchemaRef);
+        }
+    }
+
+    private static class KeyByFieldType {
         private final IOpenClass openClass;
         private final IOpenClass openFieldType;
         private final String expectedSchemaRef;
 
-        public Key(IOpenClass openClass, IOpenClass openFieldType, String expectedSchemaRef) {
+        public KeyByFieldType(IOpenClass openClass, IOpenClass openFieldType, String expectedSchemaRef) {
             this.openClass = openClass;
             this.openFieldType = openFieldType;
             this.expectedSchemaRef = expectedSchemaRef;
@@ -1138,7 +1195,7 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
             if (o == null || getClass() != o.getClass())
                 return false;
 
-            Key key = (Key) o;
+            KeyByFieldType key = (KeyByFieldType) o;
             if (!Objects.equals(openClass, key.openClass))
                 return false;
             if (!Objects.equals(openFieldType, key.openFieldType))
@@ -1160,7 +1217,16 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
             Schema<?> actualSchema,
             Schema<?> expectedSchema,
             IOpenClass openClass,
-            Set<Key> validatedSchemas) throws DifferentTypesException {
+            Set<KeyBySchemasRef> validatedBySchemasRef,
+            Set<KeyByFieldType> validatedByFieldType) throws DifferentTypesException {
+        if (expectedSchema != null && actualSchema != null && expectedSchema.get$ref() != null && actualSchema
+            .get$ref() != null) {
+            KeyBySchemasRef key = new KeyBySchemasRef(openClass, actualSchema.get$ref(), expectedSchema.get$ref());
+            if (validatedBySchemasRef.contains(key)) {
+                return;
+            }
+            validatedBySchemasRef.add(key);
+        }
         IOpenClass oldType = context.getType();
         try {
             Schema<?> resolvedActualSchema = context.getActualOpenAPIResolver().resolve(actualSchema, Schema::get$ref);
@@ -1174,7 +1240,8 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                             ((ArraySchema) resolvedActualSchema).getItems(),
                             ((ArraySchema) resolvedExpectedSchema).getItems(),
                             openClass.isArray() ? openClass.getComponentClass() : JavaOpenClass.OBJECT,
-                            validatedSchemas);
+                            validatedBySchemasRef,
+                            validatedByFieldType);
                         return;
                     } else {
                         throw new DifferentTypesException();
@@ -1215,7 +1282,8 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                                     extractParentSchema(actualComposedSchema),
                                     extractParentSchema(expectedComposedSchema),
                                     superClass,
-                                    validatedSchemas);
+                                    validatedBySchemasRef,
+                                    validatedByFieldType);
                             } catch (DifferentTypesException e) {
                                 String schemaToString = schemaToString(context,
                                     extractParentSchema(expectedComposedSchema));
@@ -1271,21 +1339,29 @@ public class OpenApiProjectValidator extends AbstractServiceInterfaceProjectVali
                             BiPredicate<Schema, IOpenField> isIncompatibleTypesPredicate = (e1, f) -> {
                                 try {
                                     if (expectedSchema.get$ref() != null) {
-                                        Key key = new Key(openClass, openField.getType(), expectedSchema.get$ref());
-                                        if (!validatedSchemas.contains(key)) {
-                                            validatedSchemas.add(key);
+                                        KeyByFieldType key = new KeyByFieldType(openClass,
+                                            openField.getType(),
+                                            expectedSchema.get$ref());
+                                        if (!validatedByFieldType.contains(key)) {
+                                            validatedByFieldType.add(key);
                                             try {
                                                 validateType(context,
                                                     e1,
                                                     entry.getValue(),
                                                     f.getType(),
-                                                    validatedSchemas);
+                                                    validatedBySchemasRef,
+                                                    validatedByFieldType);
                                             } finally {
-                                                validatedSchemas.remove(key);
+                                                validatedByFieldType.remove(key);
                                             }
                                         }
                                     } else {
-                                        validateType(context, e1, entry.getValue(), f.getType(), validatedSchemas);
+                                        validateType(context,
+                                            e1,
+                                            entry.getValue(),
+                                            f.getType(),
+                                            validatedBySchemasRef,
+                                            validatedByFieldType);
                                     }
                                     return false;
                                 } catch (DifferentTypesException e2) {

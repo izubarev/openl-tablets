@@ -1,14 +1,14 @@
 package org.openl.rules.webstudio.web.admin;
 
 import org.openl.config.PropertiesHolder;
-import org.openl.rules.repository.RepositoryInstatiator;
+import org.openl.rules.project.abstraction.Comments;
 
 public class FolderStructureSettings {
     private final String FLAT_FOLDER_STRUCTURE;
     private final RepositoryConfiguration configuration;
 
     public FolderStructureSettings(RepositoryConfiguration configuration) {
-        String withPrefix = RepositoryInstatiator.REPOSITORY_PREFIX + configuration.getConfigName();
+        String withPrefix = Comments.REPOSITORY_PREFIX + configuration.getConfigName();
         FLAT_FOLDER_STRUCTURE = withPrefix + ".folder-structure.flat";
         this.configuration = configuration;
     }

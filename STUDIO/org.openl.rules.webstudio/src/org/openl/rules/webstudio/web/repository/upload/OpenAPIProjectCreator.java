@@ -4,30 +4,31 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.openl.rules.common.OpenAPIProjectException;
 import org.openl.rules.common.ProjectException;
-import org.openl.rules.excel.builder.ExcelFileBuilder;
 import org.openl.rules.model.scaffolding.DatatypeModel;
 import org.openl.rules.model.scaffolding.ProjectModel;
 import org.openl.rules.model.scaffolding.SpreadsheetModel;
 import org.openl.rules.model.scaffolding.data.DataModel;
 import org.openl.rules.model.scaffolding.environment.EnvironmentModel;
 import org.openl.rules.openapi.OpenAPIModelConverter;
+import org.openl.rules.openapi.impl.JavaClassFile;
+import org.openl.rules.openapi.impl.OpenAPIGeneratedClasses;
+import org.openl.rules.openapi.impl.OpenAPIJavaClassGenerator;
 import org.openl.rules.openapi.impl.OpenAPIScaffoldingConverter;
 import org.openl.rules.project.ProjectDescriptorManager;
 import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.OpenAPI;
 import org.openl.rules.project.model.PathEntry;
 import org.openl.rules.project.model.ProjectDescriptor;
-import org.openl.rules.project.model.RulesDeploy;
 import org.openl.rules.project.model.validation.ValidationException;
+import org.openl.rules.project.resolving.ProjectDescriptorBasedResolvingStrategy;
 import org.openl.rules.project.xml.XmlRulesDeploySerializer;
+import org.openl.rules.webstudio.service.OpenAPIHelper;
 import org.openl.rules.webstudio.util.NameChecker;
 import org.openl.rules.webstudio.web.repository.project.ProjectFile;
 import org.openl.rules.workspace.uw.UserWorkspace;
@@ -40,10 +41,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Project creator from OpenAPI files, generates models, spreadsheets and rules.xml files.
+ * Project creator from OpenAPI files, generates models, spreadsheets, rules.xml, rules-deploy and compiled annotation
+ * template files.
  */
 public class OpenAPIProjectCreator extends AProjectCreator {
-    public static final String RULES_FILE_NAME = "rules.xml";
     public static final String RULES_DEPLOY_XML = "rules-deploy.xml";
 
     private final Logger LOGGER = LoggerFactory.getLogger(OpenAPIProjectCreator.class);
@@ -52,6 +53,7 @@ public class OpenAPIProjectCreator extends AProjectCreator {
     private final String comment;
     private final ProjectDescriptorManager projectDescriptorManager = new ProjectDescriptorManager();
     private final XmlRulesDeploySerializer serializer = new XmlRulesDeploySerializer();
+    private final OpenAPIHelper openAPIHelper = new OpenAPIHelper();
     private final String repositoryId;
     private final String projectName;
     private final String modelsPath;
@@ -120,6 +122,11 @@ public class OpenAPIProjectCreator extends AProjectCreator {
         if (!FileTypeHelper.isExcelFile(normalizedModelsPath)) {
             throw new OpenAPIProjectException("Unsupported file extension for module with Data Types.");
         }
+
+        if (normalizedAlgorithmsPath.equalsIgnoreCase(normalizedModelsPath)) {
+            throw new OpenAPIProjectException("Path for Modules cannot be the same.");
+        }
+
         this.uploadedOpenAPIFile = projectFile;
         this.comment = comment;
         this.projectName = projectName;
@@ -155,12 +162,12 @@ public class OpenAPIProjectCreator extends AProjectCreator {
             environmentModel.setDependencies(Collections.singletonList(modelsModuleName));
 
             addFile(projectBuilder,
-                generateDataTypesFile(datatypeModels),
+                openAPIHelper.generateDataTypesFile(datatypeModels),
                 modelsPath,
                 "Error uploading dataTypes file.");
 
             addFile(projectBuilder,
-                generateAlgorithmsModule(spreadsheetModels, dataModels, environmentModel),
+                openAPIHelper.generateAlgorithmsModule(spreadsheetModels, dataModels, environmentModel),
                 algorithmsPath,
                 "Error uploading spreadsheets file.");
 
@@ -168,10 +175,24 @@ public class OpenAPIProjectCreator extends AProjectCreator {
                 uploadedOpenAPIFile.getInput(),
                 uploadedOpenAPIFile.getName(),
                 "Error uploading openAPI file.");
-            InputStream rulesFile = generateRulesFile();
-            addFile(projectBuilder, rulesFile, RULES_FILE_NAME, "Error uploading rules.xml file.");
+
+            OpenAPIGeneratedClasses generated = new OpenAPIJavaClassGenerator(projectModel).generate();
+            boolean hasAnnotationTemplateClass = generated.hasAnnotationTemplateClass();
+            if (hasAnnotationTemplateClass) {
+                addJavaClassFile(projectBuilder, generated.getAnnotationTemplateClass());
+            }
+            for (JavaClassFile javaClassFile : generated.getCommonClasses()) {
+                addJavaClassFile(projectBuilder, javaClassFile);
+            }
+
+            InputStream rulesFile = generateRulesFile(hasAnnotationTemplateClass);
             addFile(projectBuilder,
-                generateRulesDeployFile(projectModel),
+                rulesFile,
+                ProjectDescriptorBasedResolvingStrategy.PROJECT_DESCRIPTOR_FILE_NAME,
+                String.format("Error uploading %s file.",
+                    ProjectDescriptorBasedResolvingStrategy.PROJECT_DESCRIPTOR_FILE_NAME));
+            addFile(projectBuilder,
+                openAPIHelper.editOrCreateRulesDeploy(serializer, projectModel, generated, null),
                 RULES_DEPLOY_XML,
                 "Error uploading rules-deploy.xml file.");
         } catch (Exception e) {
@@ -180,6 +201,16 @@ public class OpenAPIProjectCreator extends AProjectCreator {
         }
 
         return projectBuilder;
+    }
+
+    private void addJavaClassFile(RulesProjectBuilder projectBuilder,
+            JavaClassFile javaClassFile) throws ProjectException {
+
+        String javaInterfacePath = openAPIHelper.makePathToTheGeneratedFile(javaClassFile.getPath());
+        addFile(projectBuilder,
+            javaClassFile.toInputStream(),
+            javaInterfacePath,
+            String.format("Error uploading of '%s' file.", javaClassFile));
     }
 
     private void addFile(RulesProjectBuilder projectBuilder,
@@ -205,33 +236,8 @@ public class OpenAPIProjectCreator extends AProjectCreator {
         return projectModel;
     }
 
-    private InputStream generateDataTypesFile(List<DatatypeModel> datatypeModels) throws IOException {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            ExcelFileBuilder.generateDataTypes(datatypeModels, bos);
-            byte[] dtBytes = bos.toByteArray();
-            return new ByteArrayInputStream(dtBytes);
-        }
-    }
-
-    private InputStream generateAlgorithmsModule(List<SpreadsheetModel> spreadsheetModels,
-            List<DataModel> dataModels,
-            EnvironmentModel environmentModel) throws IOException {
-        try (ByteArrayOutputStream sos = new ByteArrayOutputStream()) {
-            ExcelFileBuilder.generateAlgorithmsModule(spreadsheetModels, dataModels, sos, environmentModel);
-            byte[] sprBytes = sos.toByteArray();
-            return new ByteArrayInputStream(sprBytes);
-        }
-    }
-
-    private ByteArrayInputStream generateRulesDeployFile(ProjectModel projectModel) {
-        RulesDeploy rd = new RulesDeploy();
-        rd.setProvideRuntimeContext(projectModel.isRuntimeContextProvided());
-        rd.setPublishers(new RulesDeploy.PublisherType[] { RulesDeploy.PublisherType.RESTFUL });
-        return new ByteArrayInputStream(serializer.serialize(rd).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private InputStream generateRulesFile() throws IOException, ValidationException {
-        ProjectDescriptor descriptor = defineDescriptor();
+    private InputStream generateRulesFile(boolean genJavaClasses) throws IOException, ValidationException {
+        ProjectDescriptor descriptor = defineDescriptor(genJavaClasses);
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             projectDescriptorManager.writeDescriptor(descriptor, baos);
             byte[] descriptorBytes = baos.toByteArray();
@@ -239,7 +245,7 @@ public class OpenAPIProjectCreator extends AProjectCreator {
         }
     }
 
-    private ProjectDescriptor defineDescriptor() {
+    private ProjectDescriptor defineDescriptor(boolean genJavaClasses) {
         ProjectDescriptor descriptor = new ProjectDescriptor();
         OpenAPI openAPI = new OpenAPI();
         openAPI.setAlgorithmModuleName(algorithmsModuleName);
@@ -261,6 +267,12 @@ public class OpenAPIProjectCreator extends AProjectCreator {
         openAPI.setPath(uploadedOpenAPIFile.getName());
         descriptor.setOpenapi(openAPI);
         descriptor.setModules(modules);
+
+        List<PathEntry> classpath = new ArrayList<>();
+        if (genJavaClasses) {
+            classpath.add(new PathEntry(OpenAPIHelper.DEF_JAVA_CLASS_PATH));
+        }
+        descriptor.setClasspath(classpath);
         return descriptor;
     }
 

@@ -60,6 +60,7 @@ public class RulesInFolderTestRunner {
             return false;
         }
         File[] files = testsDir.listFiles();
+        //files = new File[] {new File(testsDir, "EPBDS-10072_ALL_multiple")};
         if (files == null) {
             log.warn("Test folder is not found.");
             return false;
@@ -132,7 +133,7 @@ public class RulesInFolderTestRunner {
                 List<String> restMessages = new ArrayList<>(expectedMessages);
                 for (OpenLMessage msg : compiledOpenClass.getMessages()) {
                     String actual = msg.getSeverity() + ": " + msg.getSummary();
-                    if (msg.getSeverity().equals(Severity.ERROR) || msg.getSeverity().equals(Severity.FATAL)) {
+                    if (msg.getSeverity().equals(Severity.ERROR)) {
                         success = false;
                     }
                     Iterator<String> itr = restMessages.iterator();

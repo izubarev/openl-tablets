@@ -86,12 +86,7 @@ public abstract class ExecutableRulesMethod extends ExecutableMethod implements 
         return Tracer.invoke(invoke2, target, params, env, this);
     }
 
-    private Invokable invoke2 = new Invokable() {
-        @Override
-        public Object invoke(Object target, Object[] params, IRuntimeEnv env) {
-            return invoke2(target, params, env);
-        }
-    };
+    private final Invokable invoke2 = (Invokable) this::invoke2;
 
     private Object invoke2(Object target, Object[] params, IRuntimeEnv env) {
         if (hasAliasTypeParams) {
@@ -177,7 +172,7 @@ public abstract class ExecutableRulesMethod extends ExecutableMethod implements 
         this.boundNode = node;
     }
 
-    public void removeDebugInformation() {
+    public void clearForExecutionMode() {
         setBoundNode(null);
         ITableProperties methodProperties = getMethodProperties();
         if (methodProperties != null) {

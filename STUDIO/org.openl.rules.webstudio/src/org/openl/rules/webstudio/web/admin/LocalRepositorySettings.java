@@ -3,7 +3,6 @@ package org.openl.rules.webstudio.web.admin;
 import java.io.File;
 
 import org.openl.config.PropertiesHolder;
-import org.openl.rules.repository.RepositoryMode;
 import org.openl.spring.env.DynamicPropertySource;
 import org.openl.util.StringUtils;
 
@@ -15,11 +14,9 @@ public class LocalRepositorySettings extends RepositorySettings {
     private final String uriProperty;
     private final String baseDeployPathProperty;
     private final String supportDeploymentsProperty;
-    private final String configPathPrefix;
 
     public LocalRepositorySettings(PropertiesHolder properties, String configPrefix) {
         super(properties, configPrefix);
-        this.configPathPrefix = configPrefix;
         this.uriProperty = configPrefix + ".uri";
         this.baseDeployPathProperty = configPrefix + ".base.path";
         this.supportDeploymentsProperty = configPrefix + ".support-deployments";
@@ -34,8 +31,7 @@ public class LocalRepositorySettings extends RepositorySettings {
     }
 
     private String getDefaultPath() {
-        String type = RepositoryMode.getTypePrefix(configPathPrefix).toString();
-        return homeDirectory + File.separator + type + "-repository";
+        return homeDirectory + File.separator + "local-repository";
     }
 
     @Override

@@ -12,7 +12,7 @@ import org.openl.rules.table.IGridRegion;
 import org.openl.rules.table.IGridTable;
 import org.openl.rules.table.ILogicalTable;
 import org.openl.rules.table.TransformedGridTable;
-import org.openl.rules.utils.ParserUtils;
+import org.openl.util.ParserUtils;
 
 /**
  * Lookup table is a decision table that is created by transforming lookup tables to create a single-column return
@@ -41,7 +41,7 @@ public class DecisionTableLookupConvertor {
     private static final int HEADER_ROW = 0;
     private static final int DISPLAY_ROW = 3;
 
-    private List<ILogicalTable> hcHeaders = new ArrayList<>();
+    private final List<ILogicalTable> hcHeaders = new ArrayList<>();
     private ILogicalTable retTable;
     private DTScale scale;
 

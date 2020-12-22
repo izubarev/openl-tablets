@@ -1,6 +1,5 @@
 package org.openl.rules.workspace.dtr.impl;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -19,6 +18,8 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.openl.rules.common.CommonVersion;
 import org.openl.rules.project.abstraction.ADeploymentProject;
 import org.openl.rules.project.abstraction.AProject;
+import org.openl.rules.project.abstraction.AProjectFolder;
+import org.openl.rules.project.abstraction.Comments;
 import org.openl.rules.repository.RepositoryInstatiator;
 import org.openl.rules.repository.RepositoryMode;
 import org.openl.rules.repository.api.BranchRepository;
@@ -128,7 +129,7 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
                     deployConfigRepository = ((FolderMapper) repository).getDelegate();
                 }
             } else {
-                deployConfigRepository = createRepo(RepositoryMode.DEPLOY_CONFIG.toString(),
+                deployConfigRepository = createRepo(RepositoryMode.DEPLOY_CONFIG.getId(),
                     flatDeployConfig, deploymentConfigurationLocation);
             }
 
@@ -140,7 +141,7 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
 
     private Repository createRepo(String configName, boolean flatStructure, String baseFolder) {
         try {
-            Repository repo = RepositoryInstatiator.newRepository(configName, propertyResolver);
+            Repository repo = RepositoryInstatiator.newRepository(Comments.REPOSITORY_PREFIX + configName, propertyResolver::getProperty);
             if (repositorySettings != null) {
                 String setter = "setRepositorySettings";
                 try {
@@ -154,7 +155,7 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
             if (!flatStructure && repo.supports().folders()) {
                 // Nested folder structure is supported for FolderRepository only
                 FolderRepository delegate = (FolderRepository) repo;
-                repo = MappedRepository.create(delegate, RepositoryMode.getType(configName), baseFolder, repositorySettings);
+                repo = MappedRepository.create(delegate, baseFolder, repositorySettings);
             }
 
             return repo;
@@ -174,16 +175,25 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
             }
 
             return (Repository) Proxy.newProxyInstance(getClass().getClassLoader(),
-                new Class[] { Repository.class },
-                (proxy, method, args) -> {
-                    if (method.getName().startsWith("set") && method.getReturnType() == void.class) {
-                        return null;
-                    }
-                    if ("supports".equals(method.getName()) && method.getReturnType() == Features.class) {
-                        return new FeaturesBuilder(null).setVersions(false).build();
-                    }
-                    throw new IllegalStateException(message);
-                });
+                    new Class[]{Repository.class},
+                    (proxy, method, args) -> {
+                        final String methodName = method.getName();
+                        final Class<?> returnType = method.getReturnType();
+                        if (methodName.startsWith("set") && returnType == void.class) {
+                            return null;
+                        } else if ("supports".equals(methodName) && returnType == Features.class) {
+                            return new FeaturesBuilder(null).setVersions(false).build();
+                        } else if ("close".equals(methodName) && returnType == void.class && args == null) {
+                            return null;
+                        } else if ("getId".equals(methodName) && returnType == String.class) {
+                            return configName;
+                        }
+                        String repoName = propertyResolver.getProperty(Comments.REPOSITORY_PREFIX + configName + ".name");
+                        if ("getName".equals(methodName) && returnType == String.class) {
+                            return repoName;
+                        }
+                        throw new IllegalStateException(String.format("Repository '%s' : %s", repoName, message));
+                    });
         }
     }
 
@@ -321,7 +331,7 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
             result = new ArrayList<>(projects.values());
         }
 
-        result.sort((o1, o2) -> o1.getName().compareToIgnoreCase(o2.getName()));
+        result.sort(Comparator.comparing(AProjectFolder::getName, String.CASE_INSENSITIVE_ORDER));
 
         return result;
     }
@@ -403,9 +413,7 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
             if (repositories != null) {
                 for (Repository repository : repositories) {
                     repository.setListener(null);
-                    if (repository instanceof Closeable) {
-                        ((Closeable) repository).close();
-                    }
+                    repository.close();
                     if (deployConfigRepository == repository) {
                         deployConfigRepository = null;
                     }
@@ -414,9 +422,7 @@ public class DesignTimeRepositoryImpl implements DesignTimeRepository {
             }
             if (deployConfigRepository != null) {
                 deployConfigRepository.setListener(null);
-                if (deployConfigRepository instanceof Closeable) {
-                    ((Closeable) deployConfigRepository).close();
-                }
+                deployConfigRepository.close();
             }
 
             projects.clear();

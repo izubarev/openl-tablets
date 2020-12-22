@@ -20,7 +20,7 @@
             border: 1px solid #fff;
         }
 
-        .label {
+        #projectType .label {
             width: 120px;
         }
 
@@ -358,8 +358,10 @@
                         <h:panelGroup rendered="#{repositoryTreeController.editModelsPath}">
                             <h:inputText id="modelsFilePath" size="35" maxlength="70"
                                          value="#{repositoryTreeController.modelsPath}"
+                                         style="display: inline-block;"
                                          onkeyup="checkCreateOnOpenApiPanel();"/>
-                            <a4j:commandLink title="Reset" style="margin-left: 5px; text-decoration: none;"
+                            <a4j:commandLink title="Reset"
+                                             style="text-decoration: none; display: inline-block; margin-left: 5px;"
                                              id="resetDataPath"
                                              render="openAPIModelModule"
                                              oncomplete="modelsPathIsInput = false; initListeners();showDefaultDataPath(); checkCreateOnOpenApiPanel();"
@@ -392,10 +394,11 @@
                         <h:panelGroup rendered="#{repositoryTreeController.editAlgorithmsPath}">
                             <h:inputText id="algorithmsFilePath" size="35" maxlength="70"
                                          value="#{repositoryTreeController.algorithmsPath}"
+                                         style="display: inline-block;"
                                          onkeyup="checkCreateOnOpenApiPanel();"/>
                             <a4j:commandLink title="Reset" class="editable-link"
                                              render="openAPIAlgoModule"
-                                             style="margin-left: 5px;text-decoration: none;"
+                                             style="text-decoration: none; display: inline-block; margin-left: 5px;"
                                              id="resetAlgoPath"
                                              action="#{repositoryTreeController.changeAlgorithmsFilePathInputState}"
                                              oncomplete="algorithmsPathIsInput = false; initListeners(); showDefaultAlgoPath(); checkCreateOnOpenApiPanel();"><img
@@ -466,34 +469,36 @@
 
             <rich:tab header="Workspace">
                 <h:form id="uploadWorkspaceProjectForm" prependId="false" style="padding-top: 6px">
-                    <div style="max-height: 286px; overflow:auto">
-                        <h:panelGrid style="width: 100%" id="uploadPrjFromLocalDiv">
-                            <rich:dataTable value="#{localUpload.projects4Upload}"
-                                            rendered="#{not empty localUpload.projects4Upload}"
-                                            var="item" styleClass="table" id="uploadPrjFromLocalTable"
-                                            style="width: 98%">
-                                <f:facet name="header">
-                                    <rich:columnGroup>
-                                        <rich:column>
-                                            <h:selectBooleanCheckbox id="selectAll" title="Select/Deselect All'"
-                                                                     value="#{localUpload.selectAll}"
-                                                                     onclick="changeStatus(this);"/>
-                                        </rich:column>
-                                        <rich:column>
-                                            <h:outputText value="Name"/>
-                                        </rich:column>
-                                    </rich:columnGroup>
-                                </f:facet>
+                    <div style="max-height: 286px;">
+                        <div style="max-height: 250px; overflow:auto">
+                            <h:panelGrid style="width: 100%" id="uploadPrjFromLocalDiv">
+                                <rich:dataTable value="#{localUpload.projects4Upload}"
+                                                rendered="#{not empty localUpload.projects4Upload}"
+                                                var="item" styleClass="table" id="uploadPrjFromLocalTable"
+                                                style="width: 98%">
+                                    <f:facet name="header">
+                                        <rich:columnGroup>
+                                            <rich:column>
+                                                <h:selectBooleanCheckbox id="selectAll" title="Select/Deselect All'"
+                                                                         value="#{localUpload.selectAll}"
+                                                                         onclick="changeStatus(this);"/>
+                                            </rich:column>
+                                            <rich:column>
+                                                <h:outputText value="Name"/>
+                                            </rich:column>
+                                        </rich:columnGroup>
+                                    </f:facet>
 
-                                <rich:column style="text-align: center; width: 20px;">
-                                    <h:selectBooleanCheckbox value="#{item.selected}"
-                                                             onclick="changeAllProjectCheck(this)"/>
-                                </rich:column>
-                                <rich:column>
-                                    <h:outputText value="#{item.projectName}"/>
-                                </rich:column>
-                            </rich:dataTable>
-                        </h:panelGrid>
+                                    <rich:column style="text-align: center; width: 20px;">
+                                        <h:selectBooleanCheckbox value="#{item.selected}"
+                                                                 onclick="changeAllProjectCheck(this)"/>
+                                    </rich:column>
+                                    <rich:column>
+                                        <h:outputText value="#{item.projectName}"/>
+                                    </rich:column>
+                                </rich:dataTable>
+                            </h:panelGrid>
+                        </div>
                         <h:panelGrid id="uploadPrjFromLocalMessageDiv">
                             <h:outputText value="All projects are already in repository"
                                           rendered="#{empty localUpload.projects4Upload}"/>

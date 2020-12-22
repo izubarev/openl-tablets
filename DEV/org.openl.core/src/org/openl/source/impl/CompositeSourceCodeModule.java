@@ -17,12 +17,13 @@ import org.openl.util.fast.FastStringReader;
  * @author snshor
  *
  */
+@Deprecated
 public class CompositeSourceCodeModule implements IOpenSourceCodeModule {
 
-    private IOpenSourceCodeModule[] modules;
+    private final IOpenSourceCodeModule[] modules;
     private String source;
 
-    private int[] modulesCount;
+    private final int[] modulesCount;
     private Map<String, Object> params;
 
     public CompositeSourceCodeModule(IOpenSourceCodeModule[] modules, String separator) {

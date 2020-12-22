@@ -3,6 +3,7 @@ package org.openl.rules.fuzzy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -484,11 +485,11 @@ public final class OpenLFuzzyUtils {
     }
 
     public static final class FuzzyResult implements Comparable<FuzzyResult> {
-        Token token;
-        int foundTokensCount;
-        int missedTokensCount;
-        int unmatchedTokensCount;
-        double acceptableSimilarity;
+        final Token token;
+        final int foundTokensCount;
+        final int missedTokensCount;
+        final int unmatchedTokensCount;
+        final double acceptableSimilarity;
 
         public FuzzyResult(Token token,
                 int foundTokensCount,
@@ -558,9 +559,9 @@ public final class OpenLFuzzyUtils {
         private List<Pair<String, String>> similarity;
         private int maxMatchedTokens;
         private int[] f;
-        private double acceptableSimilarity;
-        private Token[] tokens;
-        private double[][][] distances;
+        private final double acceptableSimilarity;
+        private final Token[] tokens;
+        private final double[][][] distances;
 
         public BuildBySimilarity(double[][][] distances,
                 double acceptableSimilarity,
@@ -619,8 +620,8 @@ public final class OpenLFuzzyUtils {
                     }
                     f[i] = c;
 
-                    source1.sort(String::compareTo);
-                    target1.sort(String::compareTo);
+                    source1.sort(Comparator.naturalOrder());
+                    target1.sort(Comparator.naturalOrder());
                 } else {
                     f[i] = 0;
                     source1.clear();

@@ -95,7 +95,7 @@ public class MultiModuleInstantiationTest {
         assertEquals(3, ((Object[]) result).length);
     }
 
-    public interface MultimoduleInterface {
+    public interface MultiModuleInterface {
         String worldHello(int hour);
 
         String helloWorld(int hour);
@@ -110,10 +110,10 @@ public class MultiModuleInstantiationTest {
             listModules(projects),
             dependencyManager,
             true);
-        strategy.setServiceClass(MultimoduleInterface.class);
+        strategy.setServiceClass(MultiModuleInterface.class);
         Object instantiate = strategy.instantiate();
         assertNotNull(instantiate);
-        assertTrue(instantiate instanceof MultimoduleInterface);
+        assertTrue(instantiate instanceof MultiModuleInterface);
     }
 
     @Test

@@ -129,8 +129,8 @@ public class Migrator {
             // null means this property have default value from previous OpenL version
             Object depConfRepo = settings.getProperty("repository.deploy-config.factory");
             if (settings.getProperty(
-                "repository.deploy-config.local-repository-path") == null && (depConfRepo == null || "org.openl.rules.repository.git.GitRepository"
-                    .equals(depConfRepo))) {
+                    "repository.deploy-config.local-repository-path") == null && (depConfRepo == null || "repo-git"
+                    .equals(depConfRepo)) || "org.openl.rules.repository.git.GitRepository".equals(depConfRepo)) {
                 props.put("repository.deploy-config.local-repository-path", "${openl.home}/deploy-config-repository");
             }
         } else {
@@ -140,8 +140,8 @@ public class Migrator {
         // migrate design repository path
         Object desRepo = settings.getProperty("repository.design.factory");
         if (settings.getProperty(
-            "repository.design.local-repository-path") == null && (desRepo == null || "org.openl.rules.repository.git.GitRepository"
-                .equals(desRepo))) {
+            "repository.design.local-repository-path") == null && (desRepo == null || "repo-git"
+                .equals(desRepo)) || "org.openl.rules.repository.git.GitRepository".equals(desRepo)) {
             props.put("repository.design.local-repository-path", "${openl.home}/design-repository");
         }
 
@@ -152,14 +152,28 @@ public class Migrator {
                     .replace("{0}", "{project-name}")
                     .replace("{1}", "{username}")
                     .replace("{2}", "{current-date}");
-            props.put("repository.design.new-branch-pattern", migratedNewBranchPattern);
+            props.put("repository.design.new-branch.pattern", migratedNewBranchPattern);
+            props.put("repository.design.new-branch-pattern", null);
         }
+        rename(settings, props, "repository.deploy-config.comment-validation-pattern", "repository.deploy-config.comment-template.comment-validation-pattern");
+        rename(settings, props, "repository.deploy-config.invalid-comment-message", "repository.deploy-config.comment-template.invalid-comment-message");
+        rename(settings, props, "repository.design.comment-validation-pattern", "repository.design.comment-template.comment-validation-pattern");
+        rename(settings, props, "repository.design.invalid-comment-message", "repository.design.comment-template.invalid-comment-message");
 
         // migrate deployment repository path
+        Object productionFactory = settings.getProperty("repository.production.factory");
         if (settings.getProperty(
-            "repository.production.local-repository-path") == null && "org.openl.rules.repository.git.GitRepository"
-                .equals(settings.getProperty("repository.production.factory"))) {
+                "repository.production.local-repository-path") == null && ("repo-git"
+                .equals(productionFactory) || "org.openl.rules.repository.git.GitRepositoryrepo-git".equals(productionFactory))) {
             props.put("repository.production.local-repository-path", "${openl.home}/production-repository");
+        }
+    }
+
+    private static void rename(DynamicPropertySource settings, HashMap<String, String> props, String oldKey, String newKey) {
+        if (settings.containsProperty(oldKey)) {
+            String value = (String) settings.getProperty(oldKey);
+            props.put(oldKey, null);
+            props.put(newKey, value);
         }
     }
 

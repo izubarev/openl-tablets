@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.openl.rules.repository.RRepositoryFactory;
 import org.openl.rules.repository.api.Features;
 import org.openl.rules.repository.api.FeaturesBuilder;
 import org.openl.rules.repository.api.FileData;
@@ -17,7 +16,6 @@ import org.openl.rules.repository.api.Listener;
 import org.openl.rules.repository.api.Repository;
 import org.openl.rules.repository.common.ChangesMonitor;
 import org.openl.rules.repository.common.RevisionGetter;
-import org.openl.rules.repository.exceptions.RRepositoryException;
 import org.openl.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +37,7 @@ import com.amazonaws.services.s3.model.S3VersionSummary;
 import com.amazonaws.services.s3.model.SetBucketVersioningConfigurationRequest;
 import com.amazonaws.services.s3.model.VersionListing;
 
-public class S3Repository implements Repository, Closeable, RRepositoryFactory {
+public class S3Repository implements Repository, Closeable {
     private final Logger log = LoggerFactory.getLogger(S3Repository.class);
 
     private static final String MODIFICATION_FILE = ".openl-settings/.modification";
@@ -83,8 +81,7 @@ public class S3Repository implements Repository, Closeable, RRepositoryFactory {
         }
     }
 
-    @Override
-    public void initialize() throws RRepositoryException {
+    public void initialize() {
         AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         if (!StringUtils.isBlank(accessKey) && !StringUtils.isBlank(secretKey)) {
             builder.withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey)));
@@ -120,7 +117,7 @@ public class S3Repository implements Repository, Closeable, RRepositoryFactory {
             list("");
             monitor = new ChangesMonitor(new S3RevisionGetter(), listenerTimerPeriod);
         } catch (SdkClientException | IOException e) {
-            throw new RRepositoryException(e.getMessage(), e);
+            throw new IllegalStateException("Failed to initialize a repository", e);
         }
     }
 
@@ -400,13 +397,11 @@ public class S3Repository implements Repository, Closeable, RRepositoryFactory {
             if (version == null) {
                 deleteAllVersions(name);
 
-                onModified();
-                return true;
             } else {
                 s3.deleteVersion(bucketName, name, version);
-                onModified();
-                return true;
             }
+            onModified();
+            return true;
         } catch (SdkClientException e) {
             log.error(e.getMessage(), e);
             throw new IOException(e.getMessage(), e);

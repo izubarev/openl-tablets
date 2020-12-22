@@ -3,6 +3,7 @@ package org.openl.rules.ui.tablewizard;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -65,7 +66,7 @@ public abstract class TableCreationWizard extends BaseWizard {
      */
     private String newTableURI;
 
-    private Set<XlsWorkbookSourceCodeModule> modifiedWorkbooks = new HashSet<>();
+    private final Set<XlsWorkbookSourceCodeModule> modifiedWorkbooks = new HashSet<>();
 
     protected XlsSheetSourceCodeModule getDestinationSheet() {
         XlsSheetSourceCodeModule sourceCodeModule;
@@ -150,7 +151,7 @@ public abstract class TableCreationWizard extends BaseWizard {
             items.add(new SelectItem(i, workbook.getSheetName(i)));
         }
 
-        Collections.sort(items, (item1, item2) -> item1.getLabel().compareToIgnoreCase(item2.getLabel()));
+        items.sort(Comparator.comparing(SelectItem::getLabel, String.CASE_INSENSITIVE_ORDER));
 
         return items;
     }
@@ -227,7 +228,7 @@ public abstract class TableCreationWizard extends BaseWizard {
      */
     public void validateTechnicalName(FacesContext context, UIComponent toValidate, Object value) {
         FacesMessage message = new FacesMessage();
-        ValidatorException validEx = null;
+        ValidatorException validEx;
 
         try {
             String name = ((String) value).toUpperCase();
@@ -247,13 +248,13 @@ public abstract class TableCreationWizard extends BaseWizard {
         WebStudio studio = WebStudioUtils.getWebStudio();
         ProjectModel model = studio.getModel();
 
-        for (TableSyntaxNode node : model.getAllTableNodes().values()) {
+        for (TableSyntaxNode node : model.getAllTableSyntaxNodes()) {
             try {
                 if (node.getMember().getName().equalsIgnoreCase(techName)) {
                     return false;
                 }
 
-            } catch (Exception e) {
+            } catch (Exception ignored) {
             }
         }
 

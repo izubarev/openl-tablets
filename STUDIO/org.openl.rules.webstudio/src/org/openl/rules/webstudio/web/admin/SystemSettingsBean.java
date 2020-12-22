@@ -3,6 +3,7 @@ package org.openl.rules.webstudio.web.admin;
 import static org.openl.rules.webstudio.web.admin.AdministrationSettings.*;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 import javax.faces.context.FacesContext;
@@ -69,7 +70,7 @@ public class SystemSettingsBean {
         properties = new InMemoryProperties(propertyResolver);
 
         try {
-            deployConfigRepositoryConfiguration = new RepositoryConfiguration(RepositoryMode.DEPLOY_CONFIG.toString(), properties);
+            deployConfigRepositoryConfiguration = new RepositoryConfiguration(RepositoryMode.DEPLOY_CONFIG.getId(), properties);
             if (!isUseDesignRepo() && deployConfigRepositoryConfiguration.getErrorMessage() != null) {
                 log.error(deployConfigRepositoryConfiguration.getErrorMessage());
                 WebStudioUtils.addErrorMessage("Incorrect deploy config repository configuration, please fix it.");
@@ -246,6 +247,12 @@ public class SystemSettingsBean {
             deployConfigRepositoryConfiguration.commit();
         }
 
+        //Temporary solution. Made so that when saving settings, if there were no changes, active users are still logged out.
+        //This is necessary to reset some parameters such as: information about blocking authentication attempts in git,
+        //when the maximum number of attempts is exceeded.
+        //Should be removed after the ticket EPBDS-10431 is closed
+        properties.setProperty("_last.modified.time", Instant.now().toString());
+
         DynamicPropertySource.get().save(properties.getConfig());
 
         refreshConfig();
@@ -298,21 +305,22 @@ public class SystemSettingsBean {
 
         switch (repositoryMode) {
             case DESIGN:
-                accessType = RepositoryType.GIT.name().toLowerCase();
+                accessType = RepositoryType.GIT.factoryId;
                 configurations = getDesignRepositoryConfigurations();
+
                 break;
             case PRODUCTION:
-                accessType = RepositoryType.DB.name().toLowerCase();
+                accessType = RepositoryType.DB.factoryId;
                 configurations = getProductionRepositoryConfigurations();
                 break;
             default:
                 throw new IllegalArgumentException("Unsupported repository mode " + repositoryMode);
         }
-        configName = repositoryMode.toString();
+        configName = repositoryMode.getId();
         RepositoryConfiguration templateConfig = new RepositoryConfiguration(configName, properties);
         templateConfig.setType(accessType);
 
-        String newConfigName = RepositoryEditor.getNewConfigName(configurations, repositoryMode.toString());
+        String newConfigName = RepositoryEditor.getNewConfigName(configurations, repositoryMode);
         
         RepositoryConfiguration repoConfig = new RepositoryConfiguration(newConfigName, properties, templateConfig);
         repoConfig.commit();

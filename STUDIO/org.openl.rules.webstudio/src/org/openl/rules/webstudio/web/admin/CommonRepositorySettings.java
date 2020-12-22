@@ -1,7 +1,6 @@
 package org.openl.rules.webstudio.web.admin;
 
 import org.openl.config.PropertiesHolder;
-import org.openl.rules.repository.RepositoryMode;
 import org.openl.util.StringUtils;
 
 public class CommonRepositorySettings extends RepositorySettings {
@@ -13,11 +12,9 @@ public class CommonRepositorySettings extends RepositorySettings {
     private final String uriPath;
     private final String loginPath;
     private final String passwordPath;
-    private final String configPathPrefix;
 
     public CommonRepositorySettings(PropertiesHolder properties, String configPrefix, RepositoryType repositoryType) {
         super(properties, configPrefix);
-        configPathPrefix = configPrefix;
         this.repositoryType = repositoryType;
         uriPath = configPrefix + ".uri";
         loginPath = configPrefix + ".login";
@@ -73,12 +70,11 @@ public class CommonRepositorySettings extends RepositorySettings {
     }
 
     private String getDefaultPath(RepositoryType repositoryType) {
-        String type = RepositoryMode.getTypePrefix(configPathPrefix).toString();
         switch (repositoryType) {
             case DB:
-                return "jdbc:mysql://localhost:3306/" + type + "-repository";
+                return "jdbc:mysql://localhost:3306/repository";
             case JNDI:
-                return "java:comp/env/jdbc/" + type + "DB";
+                return "java:comp/env/jdbc/DB";
             default:
                 return null;
         }

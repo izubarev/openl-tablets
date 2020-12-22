@@ -1,6 +1,16 @@
 package org.openl.engine;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import org.openl.CompiledOpenClass;
@@ -13,15 +23,15 @@ import org.openl.dependency.CompiledDependency;
 import org.openl.dependency.IDependencyManager;
 import org.openl.message.OpenLMessage;
 import org.openl.message.OpenLMessagesUtils;
+import org.openl.message.OpenLWarnMessage;
 import org.openl.source.IOpenSourceCodeModule;
-import org.openl.source.impl.ModuleFileSourceCodeModule;
 import org.openl.syntax.code.Dependency;
 import org.openl.syntax.code.IDependency;
 import org.openl.syntax.code.IParsedCode;
 import org.openl.syntax.code.ProcessedCode;
-import org.openl.syntax.exception.CompositeSyntaxNodeException;
 import org.openl.syntax.exception.SyntaxNodeException;
 import org.openl.syntax.impl.IdentifierNode;
+import org.openl.types.IModuleInfo;
 import org.openl.types.IOpenClass;
 import org.openl.util.CollectionUtils;
 
@@ -35,30 +45,15 @@ public class OpenLCompileManager {
     public static final String ADDITIONAL_ERROR_MESSAGES_KEY = "additional-error-messages";
     private static final Pattern ASTERIX_SIGN = Pattern.compile("\\*");
     private static final Pattern QUESTION_SIGN = Pattern.compile("\\?");
-    private OpenL openl;
+    private final OpenL openl;
 
     /**
      * Construct new instance of manager.
      *
      * @param openl {@link OpenL} instance
      */
-    public OpenLCompileManager(OpenL openl) {
+    OpenLCompileManager(OpenL openl) {
         this.openl = openl;
-    }
-
-    /**
-     * Compiles module. As a result a module open class will be returned by engine.
-     *
-     * @param source source
-     * @param executionMode <code>true</code> if module should be compiled in memory optimized mode for only execution
-     * @return {@link IOpenClass} instance
-     */
-    public IOpenClass compileModule(IOpenSourceCodeModule source,
-            boolean executionMode,
-            IDependencyManager dependencyManager) {
-        ProcessedCode processedCode = getProcessedCode(source, executionMode, dependencyManager, false);
-
-        return processedCode.getBoundCode().getTopNode().getType();
     }
 
     /**
@@ -69,25 +64,24 @@ public class OpenLCompileManager {
      * @param executionMode <code>true</code> if module should be compiled in memory optimized mode for only execution
      * @return {@link CompiledOpenClass} instance
      */
-    public CompiledOpenClass compileModuleWithErrors(IOpenSourceCodeModule source,
+    CompiledOpenClass compileModuleWithErrors(IOpenSourceCodeModule source,
             boolean executionMode,
             IDependencyManager dependencyManager) {
-        ProcessedCode processedCode = getProcessedCode(source, executionMode, dependencyManager, true);
+        ProcessedCode processedCode = getProcessedCode(source, executionMode, dependencyManager);
         IOpenClass openClass = processedCode.getBoundCode().getTopNode().getType();
         return new CompiledOpenClass(openClass, processedCode.getMessages());
     }
 
     private ProcessedCode getProcessedCode(IOpenSourceCodeModule source,
             boolean executionMode,
-            IDependencyManager dependencyManager,
-            boolean ignoreErrors) {
+            IDependencyManager dependencyManager) {
         ProcessedCode processedCode;
         IBindingContext bindingContext = null;
         if (executionMode) {
             bindingContext = openl.getBinder().makeBindingContext();
             bindingContext.setExecutionMode(true);
         }
-        processedCode = processSource(source, bindingContext, ignoreErrors, dependencyManager);
+        processedCode = processSource(source, bindingContext, dependencyManager);
         return processedCode;
     }
 
@@ -106,8 +100,8 @@ public class OpenLCompileManager {
             dependencyNames = new HashSet<>(deps);
         }
         String currentModule = null;
-        if (source instanceof ModuleFileSourceCodeModule) {
-            currentModule = ((ModuleFileSourceCodeModule) source).getModuleName();
+        if (source instanceof IModuleInfo) {
+            currentModule = ((IModuleInfo) source).getModuleName();
         }
         for (IDependency dependency : dependencies) {
             String value = dependency.getNode().getIdentifier();
@@ -139,21 +133,13 @@ public class OpenLCompileManager {
      *
      * @param source source
      * @param bindingContext binding context
-     * @param ignoreErrors define a flag that indicates to suppress errors or break source processing when an error has
-     *            occurred
      * @return processed code descriptor
      */
     private ProcessedCode processSource(IOpenSourceCodeModule source,
             IBindingContext bindingContext,
-            boolean ignoreErrors,
             IDependencyManager dependencyManager) {
 
         IParsedCode parsedCode = openl.getParser().parseAsModule(source);
-        SyntaxNodeException[] parsingErrors = parsedCode.getErrors();
-
-        if (!ignoreErrors && parsingErrors.length > 0) {
-            throw new CompositeSyntaxNodeException("Parsing Error:", parsingErrors);
-        }
 
         Collection<OpenLMessage> messages = new LinkedHashSet<>();
 
@@ -232,15 +218,14 @@ public class OpenLCompileManager {
 
         IOpenBinder binder = openl.getBinder();
         IBoundCode boundCode = binder.bind(parsedCode, bindingContext);
-        messages.addAll(boundCode.getMessages());
+        messages.addAll(bindingContext != null && bindingContext.isExecutionMode()
+                                                                                   ? clearOpenLMessagesForExecutionMode(
+                                                                                       boundCode.getMessages())
+                                                                                   : boundCode.getMessages());
 
         SyntaxNodeException[] bindingErrors = boundCode.getErrors();
 
-        if (!ignoreErrors && bindingErrors.length > 0) {
-            throw new CompositeSyntaxNodeException("Binding Error:", bindingErrors);
-        } else {
-            messages.addAll(OpenLMessagesUtils.newErrorMessages(bindingErrors));
-        }
+        messages.addAll(OpenLMessagesUtils.newErrorMessages(bindingErrors));
 
         ProcessedCode processedCode = new ProcessedCode();
         processedCode.setParsedCode(parsedCode);
@@ -248,6 +233,19 @@ public class OpenLCompileManager {
         processedCode.setMessages(messages);
 
         return processedCode;
+    }
+
+    private Collection<OpenLMessage> clearOpenLMessagesForExecutionMode(Collection<OpenLMessage> messages) {
+        // OpenLWarnMessage has a ref to TableSyntaxNode, this is workaround to clean this data in execution mode
+        Collection<OpenLMessage> ret = new ArrayList<>();
+        for (OpenLMessage message : messages) {
+            if (message instanceof OpenLWarnMessage) {
+                ret.add(OpenLMessagesUtils.newWarnMessage(message.getSummary()));
+            } else {
+                ret.add(message);
+            }
+        }
+        return ret;
     }
 
     @SuppressWarnings("unchecked")

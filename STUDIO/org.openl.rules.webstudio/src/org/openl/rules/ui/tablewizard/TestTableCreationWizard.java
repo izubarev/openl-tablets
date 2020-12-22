@@ -2,6 +2,7 @@ package org.openl.rules.ui.tablewizard;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -9,13 +10,11 @@ import javax.faces.model.SelectItem;
 import javax.validation.GroupSequence;
 
 import org.hibernate.validator.constraints.NotBlank;
-import org.openl.message.Severity;
 import org.openl.rules.lang.xls.XlsSheetSourceCodeModule;
 import org.openl.rules.lang.xls.syntax.TableSyntaxNode;
 import org.openl.rules.table.properties.ITableProperties;
 import org.openl.rules.table.properties.def.TablePropertyDefinitionUtils;
 import org.openl.rules.table.xls.XlsSheetGridModel;
-import org.openl.rules.table.xls.XlsUrlParser;
 import org.openl.rules.table.xls.builder.CreateTableException;
 import org.openl.rules.table.xls.builder.TableBuilder;
 import org.openl.rules.table.xls.builder.TestTableBuilder;
@@ -162,8 +161,8 @@ public class TestTableCreationWizard extends TableCreationWizard {
             }
         }
 
-        tableItems = result.toArray(new SelectItem[result.size()]);
-        Arrays.sort(tableItems, (o1, o2) -> o1.getValue().toString().compareTo(o2.getValue().toString()));
+        tableItems = result.toArray(new SelectItem[0]);
+        Arrays.sort(tableItems, Comparator.comparing(o -> o.getValue().toString()));
     }
 
     private String getNodeName(TableSyntaxNode syntaxNode) {
@@ -202,14 +201,7 @@ public class TestTableCreationWizard extends TableCreationWizard {
         if (!executable) {
             return false;
         }
-        XlsUrlParser parser = node.getUriParser();
-        return !WebStudioUtils.getProjectModel()
-            .getModuleMessages()
-            .stream()
-            .filter(x -> x.getSourceLocation() != null && x.getSeverity()
-                .equals(Severity.ERROR) && new XlsUrlParser(x.getSourceLocation()).intersects(parser))
-            .findFirst()
-            .isPresent();
+        return WebStudioUtils.getProjectModel().getErrorsByUri(node.getUri()).isEmpty();
     }
 
     @Override

@@ -1,6 +1,11 @@
 package org.openl.rules.tbasic;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.openl.binding.IBindingContext;
 import org.openl.domain.EnumDomain;
@@ -36,8 +41,8 @@ public class AlgorithmBuilder {
 
     // Section Description Operation Condition Action Before After
     private static final class AlgorithmColumn {
-        private String id;
-        private int columnIndex;
+        private final String id;
+        private final int columnIndex;
 
         private AlgorithmColumn(String id, int columnIndex) {
             this.id = id;
@@ -86,7 +91,7 @@ public class AlgorithmBuilder {
         this.tsn = tsn;
     }
 
-    public void build(ILogicalTable tableBody) throws Exception {
+    public void build(IBindingContext cxt, ILogicalTable tableBody) throws Exception {
 
         if (tableBody == null) {
             throw SyntaxNodeExceptionUtils.createError("Invalid table. Provide table body", null, tsn);
@@ -107,7 +112,7 @@ public class AlgorithmBuilder {
         List<AlgorithmTreeNode> parsedNodes = rowParser.parse();
 
         AlgorithmCompiler compiler = new AlgorithmCompiler(bindingContext, algorithm.getHeader(), parsedNodes);
-        compiler.compile(algorithm);
+        compiler.compile(algorithm, cxt);
     }
 
     private List<AlgorithmRow> buildRows(ILogicalTable tableBody) throws SyntaxNodeException {

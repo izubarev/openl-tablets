@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
 
 import javax.faces.component.UIComponent;
 import javax.faces.component.UIInput;
@@ -22,6 +21,7 @@ import org.openl.rules.repository.api.Repository;
 import org.openl.rules.rest.ProjectHistoryService;
 import org.openl.rules.ui.WebStudio;
 import org.openl.rules.webstudio.util.NameChecker;
+import org.openl.rules.webstudio.web.admin.RepositorySettingsValidators;
 import org.openl.rules.webstudio.web.repository.CommentValidator;
 import org.openl.rules.webstudio.web.repository.RepositoryTreeState;
 import org.openl.rules.webstudio.web.repository.tree.TreeProject;
@@ -322,11 +322,16 @@ public class CopyBean {
         if (!isSupportsBranches() || isSeparateProjectSubmitted(context)) {
             return;
         }
-
-        String newBranchName = StringUtils.trim((String) value);
+        String newBranchName = (String) value;
         WebStudioUtils.validate(StringUtils.isNotBlank(newBranchName), "Cannot be empty.");
-        WebStudioUtils.validate(newBranchName.matches("[\\w\\-/]+"),
-                "Invalid branch name. Only latin letters, numbers, '_', '-' and '/' are allowed.");
+        RepositorySettingsValidators.validateBranchName(newBranchName);
+
+        String customRegex = propertyResolver.getProperty(Comments.REPOSITORY_PREFIX + repositoryId + ".new-branch.regex");
+        String customRegexError = propertyResolver.getProperty(Comments.REPOSITORY_PREFIX + repositoryId + ".new-branch.regex-error");
+        if (StringUtils.isNotBlank(customRegex)) {
+            customRegexError = StringUtils.isNotBlank(customRegexError) ? customRegexError : "The branch name does not match the following pattern: " + customRegex;
+            WebStudioUtils.validate(newBranchName.matches(customRegex), customRegexError);
+        }
 
         try {
             UserWorkspace userWorkspace = getUserWorkspace();
@@ -349,7 +354,6 @@ public class CopyBean {
         } catch (WorkspaceException | IOException e) {
             LOG.debug("Ignored error: ", e);
         }
-
     }
 
     public void commentValidator(FacesContext context, UIComponent toValidate, Object value) {
@@ -373,6 +377,16 @@ public class CopyBean {
     public void setRepositoryId(String repositoryId) {
         this.repositoryId = repositoryId;
         this.toRepositoryId = repositoryId;
+        try {
+            UserWorkspace userWorkspace = getUserWorkspace();
+            DesignTimeRepository designTimeRepository = userWorkspace.getDesignTimeRepository();
+            if (designTimeRepository.getRepository(toRepositoryId) == null) {
+                toRepositoryId = designTimeRepository.getRepositories().get(0).getId();
+            }
+        } catch (WorkspaceException e) {
+            LOG.error(e.getMessage(), e);
+        }
+
         this.designRepoComments = new Comments(propertyResolver, toRepositoryId);
     }
 
@@ -404,9 +418,6 @@ public class CopyBean {
                 String simplifiedProjectName = getBusinessName().replaceAll("[^\\w\\-]", "");
                 String userName = getUserWorkspace().getUser().getUserName();
                 String date = new SimpleDateFormat("yyyyMMdd").format(new Date());
-                String pattern = applicationContext.getEnvironment()
-                        .getProperty("repository.design.new-branch-pattern");
-                Objects.requireNonNull(pattern);
                 newBranchName = designRepoComments.newBranch(simplifiedProjectName, userName, date);
             }
         } catch (Exception e) {

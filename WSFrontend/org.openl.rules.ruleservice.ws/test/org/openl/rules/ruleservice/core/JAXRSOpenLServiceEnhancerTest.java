@@ -336,7 +336,7 @@ public class JAXRSOpenLServiceEnhancerTest {
                     path = "/someMethod";
                     break;
                 case 3:
-                    path = "/someMethod2/{arg0: .*}/{arg1: .*}/{arg2: .*}";
+                    path = "/someMethod/{arg0: .*}/{arg1: .*}/{arg2: .*}";
                     break;
                 default:
                     Assert.fail("Unexpected count of arguments");
@@ -358,7 +358,7 @@ public class JAXRSOpenLServiceEnhancerTest {
                 }
             });
         service.setServiceBean(new Object());
-        Object proxy = new JAXRSOpenLServiceEnhancer().decorateServiceBean(service, null);
+        Object proxy = new JAXRSOpenLServiceEnhancer().decorateServiceBean(service, null, null, null);
         return proxy.getClass().getInterfaces()[0];
     }
 }
