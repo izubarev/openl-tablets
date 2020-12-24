@@ -256,43 +256,76 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             .collect(Collectors.toCollection(ArrayList::new));
     }
 
-    protected final void reset(IDependency dependency, Set<String> doNotDoTheSameResetTwice) {
-        final String dependencyName = dependency.getNode().getIdentifier();
-        if (doNotDoTheSameResetTwice.contains(dependencyName)) {
+    @Override
+    public synchronized void resetOthers(IDependency... dependencies) {
+        if (dependencies == null || dependencies.length == 0) {
             return;
         }
-        doNotDoTheSameResetTwice.add(dependencyName);
-
-        Set<String> dependenciesToReset = new HashSet<>();
-        List<DependencyRelation> dependenciesReferencesToRemove = new ArrayList<>();
-        for (DependencyRelation dependencyReference : dependencyRelations) {
-            if (dependencyReference.getDependOnThisDependency().equals(dependencyName)) {
-                dependenciesToReset.add(dependencyReference.getDependency());
-            }
-            if (dependencyReference.getDependency().equals(dependencyName)) {
-                dependenciesReferencesToRemove.add(dependencyReference);
+        Set<String> dependenciesToKeep = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        for (IDependency dependency : dependencies) {
+            if (dependency != null) {
+                queue.add(dependency.getNode().getIdentifier());
+                dependenciesToKeep.add(dependency.getNode().getIdentifier());
             }
         }
-
-        for (String depName : dependenciesToReset) {
-            reset(
-                new Dependency(DependencyType.MODULE,
-                    new IdentifierNode(dependency.getNode().getType(), null, depName, null)),
-                doNotDoTheSameResetTwice);
+        while (!queue.isEmpty()) {
+            String depName = queue.poll();
+            for (DependencyRelation dependencyReference : dependencyRelations) {
+                if (dependencyReference.getDependency().equals(depName)) {
+                    if (dependenciesToKeep.add(dependencyReference.getDependOnThisDependency())) {
+                        queue.add(dependencyReference.getDependOnThisDependency());
+                    }
+                }
+            }
         }
-
-        Collection<IDependencyLoader> loaders = getDependencyLoaders().get(dependencyName);
-        if (loaders != null) {
-            loaders.forEach(IDependencyLoader::reset);
-            for (DependencyRelation dependencyReference : dependenciesReferencesToRemove) {
-                dependencyRelations.remove(dependencyReference);
+        for (String depName : getAllDependencies()) {
+            if (!dependenciesToKeep.contains(depName)) {
+                reset(new Dependency(DependencyType.MODULE,
+                    new IdentifierNode(DependencyType.MODULE.name(), null, depName, null)));
             }
         }
     }
 
     @Override
     public synchronized void reset(IDependency dependency) {
-        reset(dependency, new HashSet<>());
+        if (dependency == null) {
+            return;
+        }
+        final String dependencyName = dependency.getNode().getIdentifier();
+        Set<String> dependenciesToReset = new HashSet<>();
+        Set<DependencyRelation> dependenciesReferencesToRemove = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+        queue.add(dependencyName);
+        dependenciesToReset.add(dependencyName);
+        while (!queue.isEmpty()) {
+            String depName = queue.poll();
+            for (DependencyRelation dependencyReference : dependencyRelations) {
+                if (dependencyReference.getDependOnThisDependency().equals(depName)) {
+                    if (dependenciesToReset.add(dependencyReference.getDependency())) {
+                        queue.add(dependencyReference.getDependency());
+                    }
+                }
+                if (dependencyReference.getDependency().equals(depName)) {
+                    dependenciesReferencesToRemove.add(dependencyReference);
+                }
+            }
+        }
+        for (String dependencyNameToReset : dependenciesToReset) {
+            Collection<IDependencyLoader> loaders = getDependencyLoaders().get(dependencyNameToReset);
+            if (loaders != null) {
+                for (IDependencyLoader loader : loaders) {
+                    if (loader.getRefToCompiledDependency() != null) {
+                        log.debug("Dependency '{}' is reset.", dependencyNameToReset);
+                    }
+                    loader.reset();
+                }
+                loaders.forEach(IDependencyLoader::reset);
+            }
+        }
+        for (DependencyRelation dependencyReference : dependenciesReferencesToRemove) {
+            dependencyRelations.remove(dependencyReference);
+        }
     }
 
     @Override

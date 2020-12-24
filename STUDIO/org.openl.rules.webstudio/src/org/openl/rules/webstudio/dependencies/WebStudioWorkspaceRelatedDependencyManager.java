@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -167,9 +166,15 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
     }
 
     @Override
+    public void resetOthers(IDependency... dependencies) {
+        version.incrementAndGet();
+        super.resetOthers(dependencies);
+    }
+
+    @Override
     public void reset(IDependency dependency) {
         version.incrementAndGet();
-        super.reset(dependency, new HashSet<>());
+        super.reset(dependency);
     }
 
     @Override
