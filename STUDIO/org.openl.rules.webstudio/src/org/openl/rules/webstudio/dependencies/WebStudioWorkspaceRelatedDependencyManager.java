@@ -23,8 +23,11 @@ import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.ProjectDescriptor;
 import org.openl.syntax.code.IDependency;
 import org.openl.types.NullOpenClass;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependencyManager {
+    private final Logger log = LoggerFactory.getLogger(WebStudioWorkspaceRelatedDependencyManager.class);
 
     private enum ThreadPriority {
         LOW,
@@ -74,6 +77,9 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
                 if (currentThreadVersion == null) {
                     threadVersion.set(version.get());
                     try {
+                        log.debug("Dependency '{}' is requested with '{}' priority.",
+                            dependency.getNode().getIdentifier(),
+                            priority == null ? ThreadPriority.HIGH : priority);
                         return super.loadDependency(dependency);
                     } finally {
                         threadVersion.remove();
@@ -81,6 +87,9 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
 
                 } else {
                     if (Objects.equals(currentThreadVersion, version.get())) {
+                        log.debug("Dependency '{}' is requested with '{}' priority.",
+                            dependency.getNode().getIdentifier(),
+                            priority == null ? ThreadPriority.HIGH : priority);
                         return super.loadDependency(dependency);
                     } else {
                         return new CompiledDependency(dependency.getNode().getIdentifier(),
