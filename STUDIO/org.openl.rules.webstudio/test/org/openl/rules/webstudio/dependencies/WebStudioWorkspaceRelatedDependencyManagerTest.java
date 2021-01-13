@@ -118,7 +118,7 @@ public class WebStudioWorkspaceRelatedDependencyManagerTest {
                             webStudioWorkspaceRelatedDependencyManager
                                 .loadDependencyAsync(
                                     new Dependency(DependencyType.MODULE,
-                                        new IdentifierNode( DependencyType.MODULE.name(),
+                                        new IdentifierNode(DependencyType.MODULE.name(),
                                             null,
                                             SimpleDependencyLoader.buildDependencyName(factory.getProjectDescriptor(),
                                                 null),

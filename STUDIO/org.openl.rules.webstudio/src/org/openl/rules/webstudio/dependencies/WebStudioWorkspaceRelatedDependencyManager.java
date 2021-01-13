@@ -41,6 +41,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
     private final ThreadLocal<Long> threadVersion = new ThreadLocal<>();
     private final AtomicLong highThreadPriorityFlag = new AtomicLong(0);
     private final ThreadLocal<ThreadPriority> threadPriority = new ThreadLocal<>();
+    private volatile boolean shutdowned = false;
 
     public WebStudioWorkspaceRelatedDependencyManager(Collection<ProjectDescriptor> projects,
             ClassLoader rootClassLoader,
@@ -134,7 +135,11 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
                     .getMessages()
                     .stream()
                     .anyMatch(e -> e instanceof CompilationInterruptedOpenLErrorMessage)) {
-                    loadDependencyAsync(dependency, consumer);
+                    if (!shutdowned) {
+                        loadDependencyAsync(dependency, consumer);
+                    } else {
+                        consumer.accept(null);
+                    }
                 } else {
                     consumer.accept(compiledDependency);
                 }
@@ -193,6 +198,8 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
     }
 
     public void shutdown() {
+        shutdowned = true;
         executorService.shutdown();
+        version.incrementAndGet();
     }
 }
