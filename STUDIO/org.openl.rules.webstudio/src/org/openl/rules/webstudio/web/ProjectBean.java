@@ -876,6 +876,14 @@ public class ProjectBean {
             internalOpenAPIPath,
             converter);
 
+        modules.stream().filter(m -> m.getName().equals(algorithmModuleNameParam))
+                .findFirst()
+                .ifPresent(m -> {
+                    MethodFilter filter = new MethodFilter();
+                    filter.setIncludes(projectModel.getIncludeMethodFilter());
+                    m.setMethodFilter(filter);
+                });
+
         addDataTypesFile(modelModulePathParam, currentProject, projectModel);
 
         addAlgorithmsFile(modelModuleNameParam, algorithmModulePathParam, currentProject, projectModel);
@@ -934,7 +942,7 @@ public class ProjectBean {
 
     private void deletePreviouslyGeneratedOpenAPIClasses(RulesProject currentProject) {
         try {
-            currentProject.deleteArtefactsInFolder(OpenAPIHelper.DEF_JAVA_CLASS_PATH);
+            currentProject.deleteArtefactsInFolder(OpenAPIHelper.DEF_JAVA_CLASS_PATH + "/" + OpenAPIJavaClassGenerator.DEFAULT_OPEN_API_PATH.replace(".","/"));
         } catch (ProjectException e) {
             log.error(e.getMessage(), e);
             throw new Message(
@@ -1480,7 +1488,7 @@ public class ProjectBean {
             return projectDescriptorManager.readOriginalDescriptor(file);
         } catch (FileNotFoundException ignored) {
             return descriptor;
-        } catch (ValidationException e) {
+        } catch (IOException | ValidationException e) {
             log.error(e.getMessage(), e);
             return descriptor;
         }

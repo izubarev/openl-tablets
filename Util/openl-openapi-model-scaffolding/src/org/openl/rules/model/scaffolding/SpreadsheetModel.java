@@ -6,13 +6,14 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class SpreadsheetModel implements Model {
+public class SpreadsheetModel implements MethodModel {
 
     private String name;
     private List<InputParameter> parameters;
     private String type;
     private List<StepModel> steps = new ArrayList<>();
     private PathInfo pathInfo;
+    private boolean include;
 
     public SpreadsheetModel() {
         // empty constructor
@@ -56,6 +57,16 @@ public class SpreadsheetModel implements Model {
 
     public void setPathInfo(PathInfo pathInfo) {
         this.pathInfo = pathInfo;
+    }
+
+    @Override
+    public boolean isInclude() {
+        return include;
+    }
+
+    @Override
+    public void setInclude(boolean include) {
+        this.include = include;
     }
 
     @Override

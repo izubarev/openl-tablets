@@ -32,7 +32,6 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -100,6 +99,7 @@ import org.openl.types.impl.AOpenClass;
 import org.openl.types.impl.CompositeMethod;
 import org.openl.types.java.JavaOpenClass;
 import org.openl.util.ClassUtils;
+import org.openl.util.IOUtils;
 import org.openl.util.StringTool;
 import org.openl.util.text.TextInfo;
 
@@ -3399,11 +3399,28 @@ public final class DecisionTableHelper {
         throw new IllegalStateException();
     }
 
-    public static XlsSheetGridModel createVirtualGrid(String poiSheetName, int numberOfColumns) {
-        // Pre-2007 excel sheets had a limitation of 256 columns.
-        Workbook workbook = numberOfColumns > 256 ? new XSSFWorkbook() : new HSSFWorkbook();
-        final Sheet sheet = workbook.createSheet(poiSheetName);
-        return createVirtualGrid(sheet);
+    /**
+     * @deprecated Use plain grid model aka 2d array instead of building memory expensive Excel files.
+     */
+    @Deprecated
+    public static XlsSheetGridModel createVirtualGrid() {
+        Workbook workbook = new XSSFWorkbook();
+        try {
+            final Sheet sheet = workbook.createSheet();
+            final StringSourceCodeModule sourceCodeModule = new StringSourceCodeModule("", null);
+            final SimpleWorkbookLoader workbookLoader = new SimpleWorkbookLoader(sheet.getWorkbook());
+            XlsWorkbookSourceCodeModule mockWorkbookSource = new XlsWorkbookSourceCodeModule(sourceCodeModule,
+                workbookLoader);
+            XlsSheetSourceCodeModule mockSheetSource = new XlsSheetSourceCodeModule(new SimpleSheetLoader(sheet),
+                mockWorkbookSource);
+
+            return new XlsSheetGridModel(mockSheetSource);
+        } catch (Exception e) {
+            // If exception is thrown, we must close workbook in this method and rethrow exception.
+            // If no exception, workbook will be closed later.
+            IOUtils.closeQuietly(workbook);
+            throw e;
+        }
     }
 
     public static boolean isCollect(TableSyntaxNode tableSyntaxNode) {
@@ -3471,31 +3488,6 @@ public final class DecisionTableHelper {
             }
         }
         return cnt;
-    }
-
-    /**
-     * Creates virtual {@link XlsSheetGridModel} with poi source sheet.
-     */
-    public static XlsSheetGridModel createVirtualGrid() {
-        Sheet sheet = new HSSFWorkbook().createSheet();
-        return createVirtualGrid(sheet);
-    }
-
-    /**
-     * Creates virtual {@link XlsSheetGridModel} from poi source sheet.
-     *
-     * @param sheet poi sheet source
-     * @return virtual grid that wraps sheet
-     */
-    private static XlsSheetGridModel createVirtualGrid(Sheet sheet) {
-        final StringSourceCodeModule sourceCodeModule = new StringSourceCodeModule("", null);
-        final SimpleWorkbookLoader workbookLoader = new SimpleWorkbookLoader(sheet.getWorkbook());
-        XlsWorkbookSourceCodeModule mockWorkbookSource = new XlsWorkbookSourceCodeModule(sourceCodeModule,
-            workbookLoader);
-        XlsSheetSourceCodeModule mockSheetSource = new XlsSheetSourceCodeModule(new SimpleSheetLoader(sheet),
-            mockWorkbookSource);
-
-        return new XlsSheetGridModel(mockSheetSource);
     }
 
     private static final class ParameterTokens {

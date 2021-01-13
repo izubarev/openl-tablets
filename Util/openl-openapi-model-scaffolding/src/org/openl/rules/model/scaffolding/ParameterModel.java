@@ -4,39 +4,21 @@ import java.util.Objects;
 
 public class ParameterModel implements InputParameter {
 
-    private TypeInfo type;
-    private String name;
+    private final TypeInfo type;
+    private final String name;
     private boolean inPath;
-
-    public ParameterModel() {
-    }
 
     public ParameterModel(TypeInfo type, String name) {
         this.type = type;
         this.name = name;
-        this.inPath = false;
-    }
-
-    public ParameterModel(TypeInfo type, String name, boolean inPath) {
-        this.type = type;
-        this.name = name;
-        this.inPath = inPath;
     }
 
     public TypeInfo getType() {
         return type;
     }
 
-    public void setType(TypeInfo type) {
-        this.type = type;
-    }
-
     public String getName() {
         return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
     }
 
     public boolean isInPath() {

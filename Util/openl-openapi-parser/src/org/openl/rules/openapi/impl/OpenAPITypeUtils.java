@@ -1,5 +1,7 @@
 package org.openl.rules.openapi.impl;
 
+import static org.openl.rules.openapi.impl.OpenAPIScaffoldingConverter.SPREADSHEET_RESULT_CLASS_NAME;
+
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -11,6 +13,7 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.openl.rules.context.IRulesRuntimeContext;
 import org.openl.rules.model.scaffolding.TypeInfo;
 import org.openl.util.CollectionUtils;
 import org.openl.util.StringUtils;
@@ -30,6 +33,9 @@ public class OpenAPITypeUtils {
     protected static final Map<String, TypeInfo> WRAPPER_CLASSES = initWrapperMap();
 
     public static final String SCHEMAS_LINK = "#/components/schemas/";
+
+    public static final String DEFAULT_RUNTIME_CONTEXT = "DefaultRulesRuntimeContext";
+    public static final TypeInfo RUNTIME_CONTEXT_TYPE = new TypeInfo(IRulesRuntimeContext.class, TypeInfo.Type.RUNTIMECONTEXT);
 
     public static final String OBJECT = "Object";
     public static final String DATE = "Date";
@@ -55,41 +61,40 @@ public class OpenAPITypeUtils {
 
     private static Map<String, TypeInfo> initPrimitiveMap() {
         Map<String, TypeInfo> primitiveMap = new HashMap<>();
-        primitiveMap.put(FLOAT_PRIMITIVE, new TypeInfo(float.class.getName(), FLOAT_PRIMITIVE));
-        primitiveMap.put(DOUBLE_PRIMITIVE, new TypeInfo(double.class.getName(), DOUBLE_PRIMITIVE));
-        primitiveMap.put(LONG_PRIMITIVE, new TypeInfo(long.class.getName(), LONG_PRIMITIVE));
-        primitiveMap.put(INTEGER_PRIMITIVE, new TypeInfo(int.class.getName(), INTEGER_PRIMITIVE));
-        primitiveMap.put(BOOLEAN_PRIMITIVE, new TypeInfo(boolean.class.getName(), BOOLEAN_PRIMITIVE));
+        primitiveMap.put(float.class.getSimpleName(), new TypeInfo(float.class));
+        primitiveMap.put(double.class.getSimpleName(), new TypeInfo(double.class));
+        primitiveMap.put(long.class.getSimpleName(), new TypeInfo(long.class));
+        primitiveMap.put(int.class.getSimpleName(), new TypeInfo(int.class));
+        primitiveMap.put(boolean.class.getSimpleName(), new TypeInfo(boolean.class));
         return Collections.unmodifiableMap(primitiveMap);
     }
 
     private static Map<String, TypeInfo> initWrapperMap() {
         Map<String, TypeInfo> wrapperMap = new HashMap<>();
-        wrapperMap.put(DATE, new TypeInfo(Date.class.getName(), DATE));
-        wrapperMap.put(STRING, new TypeInfo(String.class.getName(), STRING));
-        wrapperMap.put(FLOAT_PRIMITIVE, new TypeInfo(Float.class.getName(), FLOAT));
-        wrapperMap.put(DOUBLE_PRIMITIVE, new TypeInfo(Double.class.getName(), DOUBLE));
-        wrapperMap.put(LONG_PRIMITIVE, new TypeInfo(Long.class.getName(), LONG));
-        wrapperMap.put(INTEGER_PRIMITIVE, new TypeInfo(Integer.class.getName(), INTEGER));
-        wrapperMap.put(BOOLEAN_PRIMITIVE, new TypeInfo(Boolean.class.getName(), BOOLEAN));
-        wrapperMap.put(OBJECT, new TypeInfo(Object.class.getName(), OBJECT));
-        wrapperMap.put("bigInt", new TypeInfo(BigInteger.class.getName(), BIG_INTEGER));
-        wrapperMap.put("bigDecimal", new TypeInfo(BigDecimal.class.getName(), BIG_DECIMAL));
-        return wrapperMap;
+        wrapperMap.put(Date.class.getSimpleName(), new TypeInfo(Date.class));
+        wrapperMap.put(String.class.getSimpleName(), new TypeInfo(String.class));
+        wrapperMap.put(float.class.getSimpleName(), new TypeInfo(Float.class));
+        wrapperMap.put(double.class.getSimpleName(), new TypeInfo(Double.class));
+        wrapperMap.put(long.class.getSimpleName(), new TypeInfo(Long.class));
+        wrapperMap.put(int.class.getSimpleName(), new TypeInfo(Integer.class));
+        wrapperMap.put(boolean.class.getSimpleName(), new TypeInfo(Boolean.class));
+        wrapperMap.put(Object.class.getSimpleName(), new TypeInfo(Object.class));
+        wrapperMap.put("bigInt", new TypeInfo(BigInteger.class));
+        wrapperMap.put("bigDecimal", new TypeInfo(BigDecimal.class));
+        return Collections.unmodifiableMap(wrapperMap);
     }
 
     public static TypeInfo extractType(Schema<?> schema, boolean allowPrimitiveTypes) {
-        TypeInfo result = null;
         if (schema.get$ref() != null) {
             String simpleName = getSimpleName(schema.get$ref());
-            result = new TypeInfo();
-            result.setSimpleName(simpleName);
-            result.setJavaName(simpleName);
-            result.setIsReference(true);
-            return result;
+            if (DEFAULT_RUNTIME_CONTEXT.equals(simpleName)) {
+                return RUNTIME_CONTEXT_TYPE;
+            }
+            return new TypeInfo(simpleName, simpleName, true, 0);
         }
         String schemaType = schema.getType();
         String format = schema.getFormat();
+        TypeInfo result = null;
         if ("string".equals(schemaType)) {
             result = "date".equals(format) || "date-time".equals(format) ? WRAPPER_CLASSES.get(DATE)
                                                                          : WRAPPER_CLASSES.get(STRING);
@@ -141,6 +146,16 @@ public class OpenAPITypeUtils {
         return className;
     }
 
+    public static String getSpreadsheetArrayClassName(int dim) {
+        if (dim == 0) {
+            return SPREADSHEET_RESULT_CLASS_NAME;
+        } else if (dim == 1) {
+            return "[L" + SPREADSHEET_RESULT_CLASS_NAME + ";";
+        } else {
+            return "[" + getSpreadsheetArrayClassName(dim - 1);
+        }
+    }
+
     public static String getSimpleName(String ref) {
         if (ref.startsWith("#/components/")) {
             ref = ref.substring(ref.lastIndexOf('/') + 1);
@@ -162,45 +177,50 @@ public class OpenAPITypeUtils {
     }
 
     public static String getSimpleValue(String type) {
-        String result;
         switch (type) {
             case INTEGER:
             case INTEGER_PRIMITIVE:
-                result = "=0";
-                break;
+                return "= 0";
             case BIG_INTEGER:
-                result = "=java.math.BigInteger.ZERO";
-                break;
+                return "= java.math.BigInteger.ZERO";
             case LONG:
             case LONG_PRIMITIVE:
-                result = "=0L";
-                break;
+                return "= 0L";
             case DOUBLE:
             case DOUBLE_PRIMITIVE:
-                result = "=0.0";
-                break;
+                return "= 0.0";
             case FLOAT:
             case FLOAT_PRIMITIVE:
-                result = "=0.0f";
-                break;
+                return "= 0.0f";
             case BIG_DECIMAL:
-                result = "=java.math.BigDecimal.ZERO";
-                break;
+                return "= java.math.BigDecimal.ZERO";
             case STRING:
-                result = "=" + "\"\"";
-                break;
+                return "= \"\"";
             case DATE:
-                result = "=new Date()";
-                break;
+                return "= new Date()";
             case BOOLEAN:
             case BOOLEAN_PRIMITIVE:
-                result = "=false";
-                break;
+                return "= false";
             default:
-                result = "=new Object()";
-                break;
+                return "= new Object()";
         }
-        return result;
+    }
+
+    public static String getJavaDefaultValue(TypeInfo type) {
+        switch (type.getJavaName()) {
+            case INTEGER_PRIMITIVE:
+                return "0";
+            case LONG_PRIMITIVE:
+                return "0L";
+            case DOUBLE_PRIMITIVE:
+                return "0.0";
+            case FLOAT_PRIMITIVE:
+                return  "0.0f";
+            case BOOLEAN_PRIMITIVE:
+                return "false";
+            default:
+                return "null";
+        }
     }
 
     public static String getParentName(ComposedSchema composedSchema, OpenAPI openAPI) {

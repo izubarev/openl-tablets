@@ -60,6 +60,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.servers.Server;
 
 public class JAXRSOpenLServiceEnhancerHelper {
+
+    public static final int MAX_PARAMETERS_COUNT_FOR_GET = 3;
     private static final String DECORATED_CLASS_NAME_SUFFIX = "$JAXRSAnnotated";
 
     private static final Set<Class<?>> TEXT_MEDIA_TYPE_SET = new HashSet<>();
@@ -87,8 +89,6 @@ public class JAXRSOpenLServiceEnhancerHelper {
         private static final String BAD_REQUEST_EXAMPLE = "{\"message\": \"Cannot parse 'bar' to JSON\", \"type\": \"BAD_REQUEST\"}";
         private static final String INTERNAL_SERVER_ERROR_MESSAGE = "Internal server errors e.g. compilation or parsing errors, runtime exceptions, etc.";
         private static final String INTERNAL_SERVER_ERROR_EXAMPLE = "{\"message\": \"Failed to load lazy method.\", \"type\": \"COMPILATION\"}";
-
-        private static final int MAX_PARAMETERS_COUNT_FOR_GET = 4;
 
         private static final String REQUEST_PARAMETER_SUFFIX = "Request";
 
@@ -238,7 +238,7 @@ public class JAXRSOpenLServiceEnhancerHelper {
             if (usedOpenApiComponentNamesWithRequestParameterSuffix == null) {
                 usedOpenApiComponentNamesWithRequestParameterSuffix = new HashSet<>();
                 for (Method method : originalClass.getDeclaredMethods()) {
-                    processClassForSwaggerComponentNamesConflictResolving(method.getReturnType());
+                    processClassForOpenApiComponentNamesConflictResolving(method.getReturnType());
                     for (Class<?> paramType : method.getParameterTypes()) {
                         processClassForSwaggerComponentNamesConflictResolving(paramType);
                     }
@@ -372,7 +372,7 @@ public class JAXRSOpenLServiceEnhancerHelper {
             boolean allParametersIsPrimitive = true;
             Class<?>[] originalParameterTypes = originalMethod.getParameterTypes();
             int numOfParameters = originalParameterTypes.length;
-            if (numOfParameters < MAX_PARAMETERS_COUNT_FOR_GET) {
+            if (numOfParameters <= MAX_PARAMETERS_COUNT_FOR_GET) {
                 for (Class<?> parameterType : originalParameterTypes) {
                     if (!parameterType.isPrimitive()) {
                         allParametersIsPrimitive = false;
@@ -380,7 +380,7 @@ public class JAXRSOpenLServiceEnhancerHelper {
                     }
                 }
             }
-            if (numOfParameters < MAX_PARAMETERS_COUNT_FOR_GET && allParametersIsPrimitive && !originalMethod
+            if (numOfParameters <= MAX_PARAMETERS_COUNT_FOR_GET && allParametersIsPrimitive && !originalMethod
                 .isAnnotationPresent(POST.class) || originalMethod.isAnnotationPresent(GET.class)) {
                 StringBuilder sb = new StringBuilder();
                 mv = super.visitMethod(access, name, descriptor, signature, exceptions);
@@ -610,9 +610,10 @@ public class JAXRSOpenLServiceEnhancerHelper {
                                                                     originalMethod.getName(),
                                                                     originalMethod.getParameterTypes(),
                                                                     false);
+                String truncatedSummary = summary.substring(0, Math.min(summary.length(), 120));
                 if (!originalMethod.isAnnotationPresent(ApiOperation.class)) {
                     AnnotationVisitor av = mv.visitAnnotation(Type.getDescriptor(ApiOperation.class), true);
-                    av.visit("value", summary.substring(0, Math.min(summary.length(), 120)));
+                    av.visit("value", truncatedSummary);
                     av.visit("notes", (openMethod != null ? "Rules method: " : "Method: ") + detailedSummary);
                     av.visit("response", Type.getType(extractOriginalType(originalMethod.getReturnType())));
                     av.visit("nickname", nickname);
@@ -621,7 +622,7 @@ public class JAXRSOpenLServiceEnhancerHelper {
                 if (!originalMethod.isAnnotationPresent(Operation.class)) {
                     AnnotationVisitor av = mv.visitAnnotation(Type.getDescriptor(Operation.class), true);
                     av.visit("operationId", nickname);
-                    av.visit("summary", summary.substring(0, Math.min(summary.length(), 120)));
+                    av.visit("summary", truncatedSummary);
                     av.visit("description", (openMethod != null ? "Rules method: " : "Method: ") + detailedSummary);
                     Class<?> t = originalMethod.getReturnType();
                     int dim = 0;
@@ -629,14 +630,18 @@ public class JAXRSOpenLServiceEnhancerHelper {
                         t = t.getComponentType();
                         dim++;
                     }
-                    if (!originalMethod.isAnnotationPresent(ApiResponse.class) && dim < 2) {
+                    if (!originalMethod.isAnnotationPresent(ApiResponse.class)) {
                         AnnotationVisitor av1 = av.visitArray("responses");
                         AnnotationVisitor av2 = av1.visitAnnotation("responses", Type.getDescriptor(ApiResponse.class));
                         av2.visit("responseCode", String.valueOf(Response.Status.OK.getStatusCode()));
                         av2.visit("description", "Successful operation");
                         AnnotationVisitor av3 = av2.visitArray("content");
                         AnnotationVisitor av4 = av3.visitAnnotation("responses", Type.getDescriptor(Content.class));
-                        addSchemaOpenApiAnnotation(av4, originalMethod.getReturnType());
+                        if (dim < 2) {
+                            addSchemaOpenApiAnnotation(av4, originalMethod.getReturnType());
+                        } else {
+                            addSchemaOpenApiAnnotation(av4, Object.class);
+                        }
                         av4.visitEnd();
                         av3.visitEnd();
                         av2.visitEnd();
