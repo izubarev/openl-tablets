@@ -159,19 +159,19 @@ public class DataTypeConverterTest {
         List<InputParameter> parameters = spreadsheetModel.getParameters();
         assertEquals(4, parameters.size());
 
-        Optional<InputParameter> numDui = parameters.stream().filter(x -> x.getName().equals("numDUI")).findFirst();
+        Optional<InputParameter> numDui = parameters.stream().filter(x -> x.getFormattedName().equals("numDUI")).findFirst();
         assertTrue(numDui.isPresent());
 
         Optional<InputParameter> numAccidents = parameters.stream()
-            .filter(x -> x.getName().equals("numAccidents"))
+            .filter(x -> x.getFormattedName().equals("numAccidents"))
             .findFirst();
         assertTrue(numAccidents.isPresent());
 
-        Optional<InputParameter> category = parameters.stream().filter(x -> x.getName().equals("category")).findFirst();
+        Optional<InputParameter> category = parameters.stream().filter(x -> x.getFormattedName().equals("category")).findFirst();
         assertTrue(category.isPresent());
 
         Optional<InputParameter> numMovingViolations = parameters.stream()
-            .filter(x -> x.getName().equals("numMovingViolations"))
+            .filter(x -> x.getFormattedName().equals("numMovingViolations"))
             .findFirst();
         assertTrue(numMovingViolations.isPresent());
 
@@ -187,14 +187,12 @@ public class DataTypeConverterTest {
             "test.converter/datatype/EPBDS-10285_datatype_with_exceeding_limit_fields_number.json");
         Set<DatatypeModel> datatypeModels = projectModel.getDatatypeModels();
         List<SpreadsheetModel> spreadsheetModels = projectModel.getSpreadsheetResultModels();
-        assertEquals(3, datatypeModels.size());
+        assertEquals(2, datatypeModels.size());
         Optional<SpreadsheetModel> apiTodo = spreadsheetModels.stream()
             .filter(x -> x.getName().equals("apiTodo"))
             .findFirst();
         assertTrue(apiTodo.isPresent());
-        InputParameter inputParameter = apiTodo.get().getParameters().iterator().next();
-        assertEquals("AnotherDatatype", inputParameter.getType().getSimpleName());
-        assertEquals("anotherDatatype", inputParameter.getName());
+        assertEquals(12, apiTodo.get().getParameters().size());
     }
 
     @Test

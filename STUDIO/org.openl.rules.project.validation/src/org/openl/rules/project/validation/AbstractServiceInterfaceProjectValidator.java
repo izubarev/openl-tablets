@@ -1,15 +1,14 @@
 package org.openl.rules.project.validation;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.Objects;
 
 import org.apache.commons.lang3.StringUtils;
 import org.openl.CompiledOpenClass;
-import org.openl.classloader.OpenLBundleClassLoader;
-import org.openl.message.OpenLMessagesUtils;
+import org.openl.classloader.OpenLClassLoader;
 import org.openl.rules.lang.xls.binding.XlsModuleOpenClass;
 import org.openl.rules.project.IRulesDeploySerializer;
 import org.openl.rules.project.instantiation.RulesInstantiationException;
@@ -57,7 +56,7 @@ public abstract class AbstractServiceInterfaceProjectValidator implements Projec
             RULES_DEPLOY_XML);
         if (projectResource != null) {
             try {
-                return rulesDeploySerializer.deserialize(new FileInputStream(new File(projectResource.getFile())));
+                return rulesDeploySerializer.deserialize(new FileInputStream(projectResource.getFile()));
             } catch (FileNotFoundException e) {
                 LOG.debug("Ignored error: ", e);
                 return null;
@@ -78,10 +77,10 @@ public abstract class AbstractServiceInterfaceProjectValidator implements Projec
         if (classLoader == null) {
             ClassLoader moduleGeneratedClassesClassLoader = ((XlsModuleOpenClass) instantiationStrategy.compile()
                 .getOpenClassWithErrors()).getClassGenerationClassLoader();
-            OpenLBundleClassLoader openLBundleClassLoader = new OpenLBundleClassLoader(null);
-            openLBundleClassLoader.addClassLoader(moduleGeneratedClassesClassLoader);
-            openLBundleClassLoader.addClassLoader(instantiationStrategy.getClassLoader());
-            classLoader = openLBundleClassLoader;
+            OpenLClassLoader openLClassLoader = new OpenLClassLoader(null);
+            openLClassLoader.addClassLoader(moduleGeneratedClassesClassLoader);
+            openLClassLoader.addClassLoader(instantiationStrategy.getClassLoader());
+            classLoader = openLClassLoader;
         }
         return classLoader;
     }
@@ -90,16 +89,22 @@ public abstract class AbstractServiceInterfaceProjectValidator implements Projec
             RulesInstantiationStrategy rulesInstantiationStrategy,
             ValidatedCompiledOpenClass validatedCompiledOpenClass) throws RulesInstantiationException {
         RulesDeploy rulesDeployValue = getRulesDeploy(projectDescriptor, validatedCompiledOpenClass);
-        if (rulesDeployValue != null && rulesDeployValue.getServiceName() != null) {
+        if (rulesDeployValue != null && rulesDeployValue.getServiceClass() != null) {
             final String serviceClassName = rulesDeployValue.getServiceClass().trim();
             if (!StringUtils.isEmpty(serviceClassName)) {
                 try {
-                    return validatedCompiledOpenClass.getClassLoader().loadClass(serviceClassName);
+                    Class<?> serviceClass = validatedCompiledOpenClass.getClassLoader().loadClass(serviceClassName);
+                    if (serviceClass.isInterface()) {
+                        return serviceClass;
+                    } else {
+                        throw new RulesInstantiationException(String.format(
+                                "Interface is expected for service class '%s', but class is found.",
+                                serviceClassName));
+                    }
                 } catch (ClassNotFoundException | NoClassDefFoundError e) {
-                    validatedCompiledOpenClass.addMessage(
-                        OpenLMessagesUtils.newWarnMessage(String.format("Failed to load a service class '%s'.%s",
+                    throw new RulesInstantiationException(String.format("An error is occurred during loading a service class '%s'.%s",
                             serviceClassName,
-                            StringUtils.isNotBlank(e.getMessage()) ? " " + e.getMessage() : StringUtils.EMPTY)));
+                            StringUtils.isNotBlank(e.getMessage()) ? " " + e.getMessage() : StringUtils.EMPTY));
                 }
             }
         }
@@ -126,21 +131,22 @@ public abstract class AbstractServiceInterfaceProjectValidator implements Projec
         if (!StringUtils.isEmpty(annotationTemplateClassName)) {
             try {
                 Class<?> annotationTemplateClass = resolveServiceClassLoader.loadClass(annotationTemplateClassName);
-                if (annotationTemplateClass.isInterface()) {
+                if (annotationTemplateClass.isInterface() || Modifier.isAbstract(annotationTemplateClass.getModifiers())) {
                     serviceClass = DynamicInterfaceAnnotationEnhancerHelper.decorate(serviceClass,
                         annotationTemplateClass,
                         rulesInstantiationStrategy.compile().getOpenClassWithErrors(),
                         resolveServiceClassLoader);
                 } else {
-                    validatedCompiledOpenClass.addMessage(OpenLMessagesUtils.newWarnMessage(String.format(
-                        "Failed to apply annotation template class '%s'. Interface is expected, but class is found.",
-                        annotationTemplateClassName)));
+                    throw new RulesInstantiationException(String.format(
+                            "Interface or abstract class is expected for annotation template class '%s', but class is found.",
+                            annotationTemplateClassName));
                 }
+            } catch (RulesInstantiationException e) {
+                throw e;
             } catch (Exception | NoClassDefFoundError e) {
-                validatedCompiledOpenClass.addMessage(OpenLMessagesUtils
-                    .newWarnMessage(String.format("Failed to load or apply annotation template class '%s'.%s",
+                throw new RulesInstantiationException(String.format("An error is occurred during loading or applying annotation template class '%s'.%s",
                         annotationTemplateClassName,
-                        StringUtils.isNotBlank(e.getMessage()) ? " " + e.getMessage() : StringUtils.EMPTY)));
+                        StringUtils.isNotBlank(e.getMessage()) ? " " + e.getMessage() : StringUtils.EMPTY));
             }
         }
         return RuleServiceInstantiationFactoryHelper.buildInterfaceForService(rulesInstantiationStrategy.compile()

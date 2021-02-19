@@ -17,7 +17,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@TestPropertySource(properties = { "ruleservice.datasource.dir=test-resources/LastVersionProjectsServiceConfigurerTest" })
+@TestPropertySource(properties = { "production-repository.uri=test-resources/LastVersionProjectsServiceConfigurerTest",
+        "production-repository.factory = repo-file"})
 @ContextConfiguration({ "classpath:openl-ruleservice-property-placeholder.xml",
         "classpath:openl-ruleservice-datasource-beans.xml" })
 public class LastVersionProjectsServiceConfigurerTest {
@@ -43,7 +44,6 @@ public class LastVersionProjectsServiceConfigurerTest {
         for (ServiceDescription description : servicesToBeDeployed) {
             serviceNames.add(description.getName());
         }
-        assertEquals(serviceNames.size(), servicesToBeDeployed.size());
         assertTrue(serviceNames.contains(PROJECT_NAME));
     }
 
@@ -57,7 +57,6 @@ public class LastVersionProjectsServiceConfigurerTest {
         for (ServiceDescription description : servicesToBeDeployed) {
             serviceNames.add(description.getName());
         }
-        assertEquals(serviceNames.size(), servicesToBeDeployed.size());
         assertTrue(serviceNames.contains(PROJECT_NAME));
     }
 

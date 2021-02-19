@@ -14,6 +14,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -21,8 +23,11 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
@@ -422,14 +427,29 @@ public class RepositoryTreeController {
     }
 
     private Collection<String> getDependencies(AProject project, boolean recursive) {
+        Collection<String> processedProjects = new HashSet<>();
         Collection<String> dependencies = new HashSet<>();
         if (project != null) {
-            calcDependencies(dependencies, project, recursive);
+            processedProjects.add(project.getBusinessName());
+            calcDependencies(project, recursive, processedProjects, dependencies);
         }
         return dependencies;
     }
 
-    private void calcDependencies(Collection<String> result, AProject project, boolean recursive) {
+    /**
+     * Calc project dependencies. Only closed projects will be included in the result.
+     * 
+     * @param project inspecting project
+     * @param recursive if false, only direct dependencies will be included. If true, dependencies of dependent projects
+     *            will be included
+     * @param processedProjects collections with already checked projects. Includes every checked for dependencies
+     *            project name. Needed to avoid stack overflow.
+     * @param result calculated project names for dependencies. Doesn't include closed/archived/not existing projects.
+     */
+    private void calcDependencies(AProject project,
+            boolean recursive,
+            Collection<String> processedProjects,
+            Collection<String> result) {
         List<ProjectDependencyDescriptor> dependencies;
         try {
             dependencies = projectDescriptorResolver.getDependencies(project);
@@ -445,10 +465,15 @@ public class RepositoryTreeController {
         String repoId = project.getRepository().getId();
         for (ProjectDependencyDescriptor dependency : dependencies) {
             try {
-                TreeProject projectNode = repositoryTreeState.getProjectNodeByBusinessName(repoId,
-                    dependency.getName());
+                final String dependencyName = dependency.getName();
+                if (processedProjects.contains(dependencyName)) {
+                    continue;
+                } else {
+                    processedProjects.add(dependencyName);
+                }
+                TreeProject projectNode = repositoryTreeState.getProjectNodeByBusinessName(repoId, dependencyName);
                 if (projectNode == null) {
-                    projectNode = repositoryTreeState.getProjectNodeByBusinessName(null, dependency.getName());
+                    projectNode = repositoryTreeState.getProjectNodeByBusinessName(null, dependencyName);
                 }
                 if (projectNode == null) {
                     continue;
@@ -457,11 +482,11 @@ public class RepositoryTreeController {
                 AProject dependentProject = userWorkspace
                     .getProject(projectArtefact.getRepository().getId(), projectArtefact.getName(), false);
                 if (canOpen(dependentProject)) {
-                    result.add(dependency.getName());
+                    result.add(dependencyName);
                 }
 
                 if (recursive) {
-                    calcDependencies(result, dependentProject, true);
+                    calcDependencies(dependentProject, true, processedProjects, result);
                 }
             } catch (ProjectException e) {
                 log.error(e.getMessage(), e);
@@ -629,23 +654,14 @@ public class RepositoryTreeController {
     }
 
     private String validateCreateProjectParams(String comment) {
-        String msg = validateProjectName();
-        if (msg != null) {
-            return msg;
-        }
-
-        msg = validateRepositoryId();
-        if (msg != null) {
-            return msg;
-        }
-
-        msg = validateProjectFolder();
-        if (msg != null) {
-            return msg;
-        }
-
-        msg = validateCreateProjectComment(comment);
-        return msg;
+        return Stream.<Supplier<String>> of(this::validateRepositoryId,
+                this::validateProjectName,
+                this::validateProjectFolder,
+                () -> validateCreateProjectComment(comment))
+            .map(Supplier::get)
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElse(null);
     }
 
     private String validateRepositoryId() {
@@ -670,6 +686,20 @@ public class RepositoryTreeController {
                     String projectPath = StringUtils.isEmpty(projectFolder) ? projectName : projectFolder + projectName;
                     if (((FolderMapper) repository).getDelegate().check(projectPath) != null) {
                         return "Cannot create the project because a project with such path already exists. Try to import that project from repository or create new project with another path or name.";
+                    }
+                    msg = validateProjectFolder();
+                    if (msg != null) {
+                        return msg;
+                    }
+                    final Path currentPath = Paths.get(projectPath);
+                    if (userWorkspace.getDesignTimeRepository()
+                        .getProjects()
+                        .stream()
+                        .filter(proj -> proj.getRepository().getId().equals(repositoryId))
+                        .map(AProjectFolder::getRealPath)
+                        .map(Paths::get)
+                        .anyMatch(path -> path.startsWith(currentPath) || currentPath.startsWith(path))) {
+                        return "Cannot create the project because a path conflicts with an existed project.";
                     }
                 }
             }
@@ -1123,6 +1153,7 @@ public class RepositoryTreeController {
             return null;
         }
 
+        String nodeType = getSelectedNode().getType();
         if (!project.isDeleted()) {
             repositoryTreeState.invalidateTree();
             repositoryTreeState.invalidateSelection();
@@ -1171,10 +1202,15 @@ public class RepositoryTreeController {
             repositoryTreeState.invalidateSelection();
 
             resetStudioModel();
-            WebStudioUtils.addInfoMessage("Project was erased successfully.");
+            if (UiConst.TYPE_DEPLOYMENT_PROJECT.equals(nodeType)) {
+                WebStudioUtils.addInfoMessage("Deploy configuration was erased successfully.");
+            } else {
+                WebStudioUtils.addInfoMessage("Project was erased successfully.");
+            }
         } catch (Exception e) {
             repositoryTreeState.invalidateTree();
-            String msg = e.getCause() instanceof IOException ? e.getMessage() : "Cannot erase project '" + project.getBusinessName() + "'.";
+            String msg = e.getCause() instanceof IOException ? e
+                .getMessage() : "Cannot erase project '" + project.getBusinessName() + "'.";
             log.error(msg, e);
             WebStudioUtils.addErrorMessage(msg);
         }
@@ -1504,6 +1540,8 @@ public class RepositoryTreeController {
                 return null;
             }
             project.open();
+            // User workspace is changed when the project was opened, so we must refresh it to calc dependencies.
+            userWorkspace.refresh();
             openDependenciesIfNeeded();
             repositoryTreeState.refreshSelectedNode();
             resetStudioModel();
@@ -2414,8 +2452,8 @@ public class RepositoryTreeController {
         if (StringUtils.isEmpty(repositoryId)) {
             return false;
         }
-        return Boolean.parseBoolean(
-            propertyResolver.getProperty(Comments.REPOSITORY_PREFIX + repositoryId + ".comment-template.use-custom-comments"));
+        return Boolean.parseBoolean(propertyResolver
+            .getProperty(Comments.REPOSITORY_PREFIX + repositoryId + ".comment-template.use-custom-comments"));
     }
 
     /**

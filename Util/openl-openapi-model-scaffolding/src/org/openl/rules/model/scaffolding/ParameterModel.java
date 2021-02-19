@@ -5,28 +5,40 @@ import java.util.Objects;
 public class ParameterModel implements InputParameter {
 
     private final TypeInfo type;
-    private final String name;
-    private boolean inPath;
+    private final String formattedName;
+    private final String originalName;
+    private In in;
 
-    public ParameterModel(TypeInfo type, String name) {
+    public ParameterModel(TypeInfo type, String formattedName) {
         this.type = type;
-        this.name = name;
+        this.formattedName = formattedName;
+        this.originalName = formattedName;
+    }
+
+    public ParameterModel(TypeInfo type, String formattedName, String originalName) {
+        this.type = type;
+        this.formattedName = formattedName;
+        this.originalName = originalName;
     }
 
     public TypeInfo getType() {
         return type;
     }
 
-    public String getName() {
-        return name;
+    public String getFormattedName() {
+        return formattedName;
     }
 
-    public boolean isInPath() {
-        return inPath;
+    public String getOriginalName() {
+        return originalName;
     }
 
-    public void setInPath(boolean inPath) {
-        this.inPath = inPath;
+    public In getIn() {
+        return in;
+    }
+
+    public void setIn(In in) {
+        this.in = in;
     }
 
     @Override
@@ -37,25 +49,13 @@ public class ParameterModel implements InputParameter {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-
         ParameterModel that = (ParameterModel) o;
-
-        if (!Objects.equals(type, that.type)) {
-            return false;
-        }
-
-        if (inPath != that.inPath) {
-            return false;
-        }
-
-        return Objects.equals(name, that.name);
+        return Objects.equals(type, that.type) && Objects.equals(formattedName, that.formattedName) && Objects
+            .equals(originalName, that.originalName) && in == that.in;
     }
 
     @Override
     public int hashCode() {
-        int result = type != null ? type.hashCode() : 0;
-        result = 31 * result + (inPath ? 1 : 0);
-        result = 31 * result + (name != null ? name.hashCode() : 0);
-        return result;
+        return Objects.hash(type, formattedName, in, originalName);
     }
 }

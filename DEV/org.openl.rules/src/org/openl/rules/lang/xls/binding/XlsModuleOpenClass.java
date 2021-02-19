@@ -23,7 +23,7 @@ import org.openl.binding.exception.DuplicatedFieldException;
 import org.openl.binding.exception.DuplicatedMethodException;
 import org.openl.binding.impl.BindHelper;
 import org.openl.binding.impl.module.ModuleOpenClass;
-import org.openl.classloader.OpenLBundleClassLoader;
+import org.openl.classloader.OpenLClassLoader;
 import org.openl.dependency.CompiledDependency;
 import org.openl.engine.ExtendableModuleOpenClass;
 import org.openl.engine.OpenLSystemProperties;
@@ -33,6 +33,7 @@ import org.openl.rules.calc.CustomSpreadsheetResultOpenClass;
 import org.openl.rules.calc.SpreadsheetResultOpenClass;
 import org.openl.rules.constants.ConstantOpenField;
 import org.openl.rules.convertor.ObjectToDataOpenCastConvertor;
+import org.openl.rules.data.DataOpenField;
 import org.openl.rules.data.IDataBase;
 import org.openl.rules.data.ITable;
 import org.openl.rules.lang.xls.XlsNodeTypes;
@@ -81,7 +82,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
 
     private final ClassLoader classLoader;
 
-    private final OpenLBundleClassLoader classGenerationClassLoader;
+    private final OpenLClassLoader classGenerationClassLoader;
 
     private RulesModuleBindingContext rulesModuleBindingContext;
 
@@ -115,7 +116,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
         this.dispatchingValidationEnabled = OpenLSystemProperties
             .isDispatchingValidationEnabled(bindingContext.getExternalParams());
         this.classLoader = classLoader;
-        this.classGenerationClassLoader = new OpenLBundleClassLoader(null);
+        this.classGenerationClassLoader = new OpenLClassLoader(null);
         this.classGenerationClassLoader.addClassLoader(classLoader);
         this.rulesModuleBindingContext = new RulesModuleBindingContext(bindingContext, this);
 
@@ -161,7 +162,7 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
         return classLoader;
     }
 
-    public OpenLBundleClassLoader getClassGenerationClassLoader() {
+    public OpenLClassLoader getClassGenerationClassLoader() {
         return classGenerationClassLoader;
     }
 
@@ -270,7 +271,10 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
                         addMethod(dependencyMethod);
                     }
                 } catch (OpenlNotCheckedException e) {
-                    LOG.debug("ADD METHOD", e);
+                    LOG.debug(String.format("An exception occurred during adding the method '%s'.",
+                        MethodUtil.printMethod(dependencyMethod.getName(),
+                            dependencyMethod.getSignature().getParameterTypes())),
+                        e);
                     addError(e);
                 }
             }
@@ -291,7 +295,8 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
 
     @Override
     protected boolean isDependencyFieldInheritable(IOpenField openField) {
-        if (openField instanceof ConstantOpenField) {
+        if (openField instanceof ConstantOpenField || openField instanceof DataOpenField && XlsNodeTypes.XLS_DATA
+            .equals(((DataOpenField) openField).getNodeType())) {
             return true;
         }
         return super.isDependencyFieldInheritable(openField);
@@ -354,8 +359,13 @@ public class XlsModuleOpenClass extends ModuleOpenClass implements ExtendableMod
     @Override
     public void addField(IOpenField openField) {
         Map<String, IOpenField> fields = fieldMap();
-        if (fields.containsKey(openField.getName())) {
-            IOpenField existedField = fields.get(openField.getName());
+        IOpenField existedField = fields.get(openField.getName());
+        if (existedField != null) {
+            if (openField instanceof DataOpenField && existedField instanceof DataOpenField && XlsNodeTypes.XLS_DATA
+                .equals(((DataOpenField) openField).getNodeType()) && XlsNodeTypes.XLS_DATA
+                    .equals(((DataOpenField) openField).getNodeType())) {
+                return;
+            }
             if (openField instanceof ConstantOpenField && existedField instanceof ConstantOpenField) {
                 // Ignore constants with the same values
                 if (Objects.equals(((ConstantOpenField) openField).getValue(),

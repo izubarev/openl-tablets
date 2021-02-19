@@ -39,10 +39,8 @@
     </h:panelGroup>
 
     <h:panelGroup rendered="#{!empty rProject and copyBean.canCreate}">
-        <ui:include src="/pages/modules/copyProject.xhtml"/>
-        <f:subview id="selectFolderSubview">
-            <ui:include src="/pages/modules/repository/modal/selectFolder.xhtml"/>
-        </f:subview>
+        <ui:include src="/pages/modules/copyProject.xhtml" />
+        <ui:include src="/pages/modules/repository/modal/selectFolder.xhtml" />
     </h:panelGroup>
 
     <h:panelGroup rendered="#{studio.canMerge}">
@@ -148,7 +146,7 @@
                                id="updateProjectButton"
                                title="Update project" value="Update"
                                rendered="#{!empty rProject and studio.model.editable and empty module}" />
-                <h:commandLink styleClass="changes-listener" onclick="openExportProjectDialog(); return false;"
+                <h:commandLink styleClass="changes-listener" onclick="openExportProjectDialog('#{rProject.repository.id}', '#{rProject.name}'); return false;"
                                id="exportProjectButton"
                                title="Download the project as a zip archive" value="Export"
                                rendered="#{!empty rProject and empty module}" />
@@ -156,7 +154,7 @@
                                id="updateModuleButton"
                                title="Update module" value="Update"
                                rendered="#{!empty module and studio.model.editable}" />
-                <h:commandLink styleClass="changes-listener" onclick="openExportModuleDialog(); return false;"
+                <h:commandLink styleClass="changes-listener" onclick="openExportModuleDialog('#{rProject.repository.id}', '#{rProject.name}', '#{studio.currentModulePath}'); return false;"
                                id="exportModuleButton"
                                title="Export module" value="Export"
                                rendered="#{!empty module}" />

@@ -493,9 +493,6 @@ public class MappedRepository implements FolderRepository, BranchRepository, Clo
                     throw new IOException("Project \"" + project.getName() + "\" with path \"" + project
                         .getPath() + "\" is already imported.");
                 }
-
-                projectsWithSameName.forEach(p -> p.setDuplicated(true));
-                project.setDuplicated(true);
             }
             externalToInternal.getProjects().add(project);
 
@@ -517,13 +514,6 @@ public class MappedRepository implements FolderRepository, BranchRepository, Clo
         } finally {
             repositorySettings.unlock(configFile);
         }
-    }
-
-    @Override
-    public void addFileData(FileData fileData) throws IOException {
-        updateConfigFile(fileData);
-        FileMappingData additionalData = fileData.getAdditionalData(FileMappingData.class);
-        fileData.setName(toExternal(getUpToDateMapping(true), additionalData.getInternalPath()));
     }
 
     private Optional<ProjectInfo> findProject(ProjectIndex projectIndex, FileData data) {
@@ -643,7 +633,7 @@ public class MappedRepository implements FolderRepository, BranchRepository, Clo
             }
         }
 
-        log.debug("Mapping for external folder '{}' is not found. Use it as is.", externalPath);
+        log.warn("Mapping for external folder '{}' is not found. Use it as is.", externalPath);
         return externalPath;
     }
 

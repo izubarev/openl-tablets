@@ -4,7 +4,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import org.openl.OpenClassUtil;
-import org.openl.classloader.OpenLBundleClassLoader;
+import org.openl.classloader.OpenLClassLoader;
 import org.openl.dependency.CompiledDependency;
 import org.openl.dependency.IDependencyManager;
 import org.openl.exception.OpenLCompilationException;
@@ -139,6 +139,7 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
     public synchronized CompiledDependency loadDependency(IDependency dependency) throws OpenLCompilationException {
         final IDependencyLoader dependencyLoader = findDependencyLoader(dependency);
         final String dependencyName = dependency.getNode().getIdentifier();
+
         Deque<String> compilationStack = getCompilationStack();
         try {
             if (log.isDebugEnabled()) {
@@ -230,7 +231,7 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
             return externalJarsClassloaders.get(project.getName());
         }
         ClassLoader parentClassLoader = rootClassLoader == null ? this.getClass().getClassLoader() : rootClassLoader;
-        OpenLBundleClassLoader externalJarsClassloader = new OpenLBundleClassLoader(project.getClassPathUrls(),
+        OpenLClassLoader externalJarsClassloader = new OpenLClassLoader(project.getClassPathUrls(),
             parentClassLoader);
         // To load classes from dependency jars first
         if (project.getDependencies() != null) {

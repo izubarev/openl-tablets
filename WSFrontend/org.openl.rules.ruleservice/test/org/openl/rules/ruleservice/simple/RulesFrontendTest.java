@@ -7,13 +7,10 @@ import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.openl.rules.ruleservice.core.OpenLService;
-import org.openl.rules.ruleservice.core.RuleServiceDeployException;
 import org.openl.rules.ruleservice.core.RuleServiceUndeployException;
 import org.openl.rules.ruleservice.management.ServiceManager;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +19,9 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 @RunWith(SpringJUnit4ClassRunner.class)
-@TestPropertySource(properties = { "ruleservice.datasource.dir=test-resources/RulesFrontendTest",
-        "ruleservice.isProvideRuntimeContext=false" })
+@TestPropertySource(properties = { "production-repository.uri=test-resources/RulesFrontendTest",
+        "ruleservice.isProvideRuntimeContext=false",
+        "production-repository.factory = repo-file"})
 @ContextConfiguration({ "classpath:openl-ruleservice-beans.xml" })
 public class RulesFrontendTest {
 
@@ -58,15 +56,13 @@ public class RulesFrontendTest {
     }
 
     @Test
-    public void testProxyServicesNotExistedService() throws RuleServiceUndeployException,
-                                                     RuleServiceDeployException,
-                                                     MethodInvocationException {
+    public void testProxyServicesNotExistedService() throws RuleServiceUndeployException, MethodInvocationException {
         assertEquals(3, frontend.getServiceNames().size());
         Object result = frontend.execute("RulesFrontendTest_multimodule", "worldHello", 10);
         assertEquals("World, Good Morning!", result);
-        OpenLService openLService = serviceManager.getServiceByName("RulesFrontendTest_multimodule");
+        serviceManager.getServiceByDeploy("RulesFrontendTest/multimodule");
 
-        serviceManager.undeploy("RulesFrontendTest_multimodule");
+        serviceManager.undeploy("RulesFrontendTest/multimodule");
         assertEquals(Arrays.asList("org.openl.rules.tutorial4.Tutorial4Interface", "simple/name"),
             frontend.getServiceNames());
 

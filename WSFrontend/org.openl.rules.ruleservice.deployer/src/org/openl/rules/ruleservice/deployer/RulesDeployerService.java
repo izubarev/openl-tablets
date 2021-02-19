@@ -53,16 +53,15 @@ public class RulesDeployerService implements Closeable {
     static final String DEFAULT_AUTHOR_NAME = "OpenL_Deployer";
 
     private final Repository deployRepo;
-    private final String deployPath;
-    private boolean supportDeployments = true;
+    private final String baseDeployPath;
 
-    public RulesDeployerService(Repository repository, String deployPath) {
+    public RulesDeployerService(Repository repository, String baseDeployPath) {
         this.deployRepo = repository;
         if (deployRepo.supports().isLocal()) {
             // NOTE deployment path isn't required for LocalRepository. It must be specified within URI
-            this.deployPath = "";
+            this.baseDeployPath = "";
         } else {
-            this.deployPath = deployPath.isEmpty() || deployPath.endsWith("/") ? deployPath : deployPath + "/";
+            this.baseDeployPath = baseDeployPath.isEmpty() || baseDeployPath.endsWith("/") ? baseDeployPath : baseDeployPath + "/";
         }
     }
 
@@ -73,23 +72,13 @@ public class RulesDeployerService implements Closeable {
      */
     public RulesDeployerService(Properties properties) {
         this.deployRepo = RepositoryInstatiator.newRepository("production-repository", properties::getProperty);
-
-        if (StringUtils.isNotBlank(properties.getProperty("ruleservice.datasource.filesystem.supportDeployments"))) {
-            this.supportDeployments = Boolean.parseBoolean(properties.getProperty(
-                "ruleservice.datasource.filesystem.supportDeployments")) || !deployRepo.supports().isLocal();
-        }
-
         if (deployRepo.supports().isLocal()) {
             // NOTE deployment path isn't required for LocalRepository. It must be specified within URI
-            this.deployPath = "";
+            this.baseDeployPath = "";
         } else {
             String deployPath = properties.getProperty("production-repository.base.path");
-            this.deployPath = deployPath.isEmpty() || deployPath.endsWith("/") ? deployPath : deployPath + "/";
+            this.baseDeployPath = deployPath.isEmpty() || deployPath.endsWith("/") ? deployPath : deployPath + "/";
         }
-    }
-
-    public void setSupportDeployments(boolean supportDeployments) {
-        this.supportDeployments = supportDeployments || !deployRepo.supports().isLocal();
     }
 
     /**
@@ -111,19 +100,20 @@ public class RulesDeployerService implements Closeable {
     /**
      * Read a service by the given path name.
      *
-     * @param serviceName the path name of the service to read.
+     * @param deployPath deployPath of the service to read.
      * @return the InputStream containing project archive.
      * @throws IOException if not possible to read the file.
      */
-    public InputStream read(String serviceName) throws IOException {
+    public InputStream read(String deployPath) throws IOException {
+        final String fullDeployPath = baseDeployPath + deployPath;
         if (deployRepo.supports().folders()) {
-            serviceName = serviceName + "/";
-            List<FileData> files = deployRepo.list(serviceName);
+            deployPath = fullDeployPath + "/";
+            List<FileData> files = deployRepo.list(deployPath);
             ByteArrayOutputStream fos = new ByteArrayOutputStream();
             ZipOutputStream zipOut = new ZipOutputStream(fos);
             for (FileData fileData : files) {
                 FileItem fileItem = deployRepo.read(fileData.getName());
-                ZipEntry zipEntry = new ZipEntry(fileItem.getData().getName().replace(serviceName, ""));
+                ZipEntry zipEntry = new ZipEntry(fileItem.getData().getName().replace(deployPath, ""));
                 zipOut.putNextEntry(zipEntry);
                 InputStream stream = fileItem.getStream();
                 byte[] bytes = new byte[1024];
@@ -137,31 +127,32 @@ public class RulesDeployerService implements Closeable {
             fos.close();
             return new ByteArrayInputStream(fos.toByteArray());
         } else {
-            return deployRepo.read(serviceName).getStream();
+            return deployRepo.read(fullDeployPath).getStream();
         }
     }
 
     /**
      * Delete a file or mark it as deleted.
      *
-     * @param serviceName the path name of the file to delete.
+     * @param deployPath deployPath of the file to delete.
      * @return true if file has been deleted successfully or false if the file is absent or cannot be deleted.
      */
-    public boolean delete(String serviceName) throws IOException {
-        FileData fileDate = deployRepo.check(serviceName);
+    public boolean delete(String deployPath) throws IOException {
+        final String fullDeployPath = baseDeployPath + deployPath;
+        FileData fileDate = deployRepo.check(fullDeployPath);
         if (deployRepo.delete(fileDate)) {
-            deleteDeploymentDescriptors(serviceName);
+            deleteDeploymentDescriptors(fullDeployPath);
             return true;
         }
         return false;
     }
 
-    private void deleteDeploymentDescriptors(String serviceName) throws IOException {
+    private void deleteDeploymentDescriptors(String deployPath) throws IOException {
         if (deployRepo.supports().folders()) {
-            if (serviceName.charAt(0) == '/') {
-                serviceName = serviceName.substring(1);
+            if (deployPath.charAt(0) == '/') {
+                deployPath = deployPath.substring(1);
             }
-            final String deploymentName = serviceName.split("/")[0];
+            final String deploymentName = deployPath.split("/")[0];
             if (((FolderRepository) deployRepo).listFolders(deploymentName).isEmpty()) {
                 for (String deployDescriptorFile : DEPLOY_DESCRIPTOR_FILES) {
                     FileData fd = deployRepo.check(deploymentName + "/" + deployDescriptorFile);
@@ -175,12 +166,16 @@ public class RulesDeployerService implements Closeable {
 
     private void deployInternal(String originalName, InputStream in, boolean ignoreIfExists) throws IOException,
                                                                                           RulesDeployInputException {
+        if (originalName != null) {
+            //For some reason Java doesn't allow trailing whitespace in folder names
+            originalName = originalName.trim();
+        }
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         IOUtils.copyAndClose(in, baos);
 
         Map<String, byte[]> zipEntries = DeploymentUtils.unzip(new ByteArrayInputStream(baos.toByteArray()));
 
-        if (baos.size() == 0 || zipEntries.size() == 0) {
+        if (baos.size() == 0 || zipEntries.isEmpty()) {
             throw new RulesDeployInputException("Cannot create a project from the given file. Zip file is empty.");
         }
 
@@ -198,35 +193,21 @@ public class RulesDeployerService implements Closeable {
             }
         } else {
             if (deployRepo.supports().folders()) {
-                if (supportDeployments) {
-                    String deploymentName = getDeploymentName(zipEntries);
-                    if (StringUtils.isBlank(deploymentName)) {
-                        deploymentName = StringUtils.isNotBlank(originalName)
-                                ? originalName : randomDeploymentName();
-                    }
-                    if (!ignoreIfExists && isRulesDeployed(deploymentName)) {
-                        LOG.info("Module '{}' is skipped for deploy because it has been already deployed.", deploymentName);
-                        return;
-                    }
-                    FileData dest = new FileData();
-                    dest.setName(deployPath + deploymentName);
-                    dest.setAuthor(DEFAULT_AUTHOR_NAME);
-                    dest.setSize(baos.size());
-                    FileChangesFromZip changes = new FileChangesFromZip(new ZipInputStream(new ByteArrayInputStream(baos.toByteArray())), dest.getName());
-                    ((FolderRepository) deployRepo).save(Collections.singletonList(new FolderItem(dest, changes)), ChangesetType.FULL);
-                } else {
-                    //split zip to single-project deployment if supportDeployments is false
-                    //FIXME delete it after removing of {ruleservice.datasource.filesystem.supportDeployments} property
-                    List<FileItem> fileItems = splitMultipleDeployment(zipEntries, originalName, ignoreIfExists);
-
-                    List<FolderItem> folderItems = fileItems.stream().map(fi -> {
-                        FileData data = fi.getData();
-                        FileChangesFromZip files = new FileChangesFromZip(new ZipInputStream(fi.getStream()),
-                                data.getName());
-                        return new FolderItem(data, files);
-                    }).collect(Collectors.toList());
-                    ((FolderRepository) deployRepo).save(folderItems, ChangesetType.FULL);
+                String deploymentName = getDeploymentName(zipEntries);
+                if (StringUtils.isBlank(deploymentName)) {
+                    deploymentName = StringUtils.isNotBlank(originalName)
+                            ? originalName : randomDeploymentName();
                 }
+                if (!ignoreIfExists && isRulesDeployed(deploymentName)) {
+                    LOG.info("Module '{}' is skipped for deploy because it has been already deployed.", deploymentName);
+                    return;
+                }
+                FileData dest = new FileData();
+                dest.setName(baseDeployPath + deploymentName);
+                dest.setAuthor(DEFAULT_AUTHOR_NAME);
+                dest.setSize(baos.size());
+                FileChangesFromZip changes = new FileChangesFromZip(new ZipInputStream(new ByteArrayInputStream(baos.toByteArray())), dest.getName());
+                ((FolderRepository) deployRepo).save(Collections.singletonList(new FolderItem(dest, changes)), ChangesetType.FULL);
             } else {
                 //split zip to single-project deployment if repository doesn't support folders
                 List<FileItem> fileItems = splitMultipleDeployment(zipEntries, originalName, ignoreIfExists);
@@ -328,10 +309,7 @@ public class RulesDeployerService implements Closeable {
             return null;
         }
         FileData dest = new FileData();
-        String name = deployPath;
-        if (supportDeployments) {
-            name += deploymentName;
-        }
+        String name = baseDeployPath + deploymentName;
         dest.setName(name + '/' + projectName);
         dest.setAuthor(DEFAULT_AUTHOR_NAME);
         return dest;
@@ -349,7 +327,7 @@ public class RulesDeployerService implements Closeable {
     }
 
     private boolean isRulesDeployed(String deploymentName) throws IOException {
-        List<FileData> deployments = deployRepo.list(deployPath + deploymentName + "/");
+        List<FileData> deployments = deployRepo.list(baseDeployPath + deploymentName + "/");
         return !deployments.isEmpty();
     }
 

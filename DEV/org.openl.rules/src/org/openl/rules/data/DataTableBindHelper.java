@@ -35,6 +35,7 @@ import org.openl.syntax.impl.IdentifierNode;
 import org.openl.syntax.impl.Tokenizer;
 import org.openl.types.IOpenClass;
 import org.openl.types.IOpenField;
+import org.openl.types.NullOpenClass;
 import org.openl.types.impl.AOpenField;
 import org.openl.types.impl.CollectionElementField;
 import org.openl.types.impl.CollectionType;
@@ -868,8 +869,9 @@ public class DataTableBindHelper {
             } else {
                 fieldInChain = getWritableField(bindingContext, fieldNameNode, table, loadedFieldType);
 
-                if (fieldIndex != fieldAccessorChain.length - 1 && fieldInChain != null && (fieldInChain.getType()
-                    .isArray() || ClassUtils.isAssignable(fieldInChain.getType().getInstanceClass(), List.class))) {
+                if (fieldIndex != fieldAccessorChain.length - 1 && fieldInChain != null && fieldInChain
+                    .getType() != NullOpenClass.the && (fieldInChain.getType()
+                        .isArray() || ClassUtils.isAssignable(fieldInChain.getType().getInstanceClass(), List.class))) {
                     fieldInChain = getWritableCollectionElement(bindingContext,
                         fieldNameNode,
                         table,
@@ -999,8 +1001,10 @@ public class DataTableBindHelper {
                     sb.toString(),
                     fieldName);
             } else {
-                errorMessage = String
-                    .format("Field '%s' is not found in type '%s'.", fieldName, loadedFieldType.getName());
+                errorMessage = String.format("%s '%s' is not found in type '%s'.",
+                    loadedFieldType.isStatic() ? "Static field" : "Field",
+                    fieldName,
+                    loadedFieldType.getName());
             }
             SyntaxNodeException error = SyntaxNodeExceptionUtils.createError(errorMessage, currentFieldNameNode);
             bindingContext.addError(error);
@@ -1050,7 +1054,8 @@ public class DataTableBindHelper {
         }
 
         if (field == null) {
-            String message = String.format("Field '%s' is not found.", name);
+            String message = String
+                .format("%s '%s' is not found.", loadedFieldType.isStatic() ? "Static field" : "Field", name);
             SyntaxNodeException error = SyntaxNodeExceptionUtils.createError(message, currentFieldNameNode);
             bindingContext.addError(error);
             return null;
