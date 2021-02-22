@@ -61,6 +61,7 @@
                 <ref bean="notificationService"/>
                 <ref bean="projectHistoryService"/>
                 <ref bean="propertyService"/>
+                <ref bean="workspaceCompileService"/>
             </list>
         </property>
         <property name="providers">

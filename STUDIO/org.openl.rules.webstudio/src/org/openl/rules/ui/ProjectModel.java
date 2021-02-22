@@ -47,7 +47,6 @@ import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.PathEntry;
 import org.openl.rules.project.model.ProjectDescriptor;
 import org.openl.rules.project.resolving.ProjectResolver;
-import org.openl.rules.project.validation.openapi.OpenApiProjectValidator;
 import org.openl.rules.rest.ProjectHistoryService;
 import org.openl.rules.source.impl.VirtualSourceCodeModule;
 import org.openl.rules.table.CompositeGrid;
@@ -1114,6 +1113,10 @@ public class ProjectModel {
     public synchronized TableEditorModel getTableEditorModel(String tableUri) {
         IOpenLTable table = getTable(tableUri);
         return getTableEditorModel(table);
+    }
+
+    public WebStudioWorkspaceRelatedDependencyManager getWebStudioWorkspaceDependencyManager() {
+        return webStudioWorkspaceDependencyManager;
     }
 
     public synchronized TableEditorModel getTableEditorModel(IOpenLTable table) {
