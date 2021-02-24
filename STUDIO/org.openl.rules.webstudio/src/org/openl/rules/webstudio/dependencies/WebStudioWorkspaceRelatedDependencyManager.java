@@ -34,7 +34,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
         HIGH;
     }
 
-    private static final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private final List<ProjectDescriptor> projects;
     private final AtomicLong version = new AtomicLong(0);
