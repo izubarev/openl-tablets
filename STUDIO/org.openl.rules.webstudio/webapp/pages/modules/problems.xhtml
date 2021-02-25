@@ -1,13 +1,12 @@
 <ui:composition
     xmlns="http://www.w3.org/1999/xhtml"
-    xmlns:h="http://java.sun.com/jsf/html"
-    xmlns:ui="http://java.sun.com/jsf/facelets"
-    xmlns:rich="http://richfaces.org/rich">
+    xmlns:ui="http://java.sun.com/jsf/facelets">
 
     <style>
         .tree-problems .rf-trn-ico {
             display: none;
         }
+
     </style>
 
     <div class="panel">
@@ -16,40 +15,61 @@
         </div>
 
         <div class="panel-body container">
-            <rich:tree id="problemsTree" styleClass="tree tree-problems" value="#{problemsBean.tree}" var="node"
-                nodeType="#{node.type}" toggleType="client">
-                <rich:treeNode type="errors" id="problemsTree-errors">
-                    <h:outputText value="#{node.name}" />
-                    <span class="badge badge-small badge-error">#{node.numErrors}</span>
-                </rich:treeNode>
-                <rich:treeNode type="error">
-                    <h:outputLink value="#{node.url}" title="#{node.title}" styleClass="problem-error problem-small">
-                        <h:outputText value="#{node.name}" />
-                    </h:outputLink>
-                </rich:treeNode>
-                <rich:treeNode type="warnings" id="problemsTree-warnings">
-                    <h:outputText value="#{node.name}" />
-                    <span class="badge badge-small badge-warning">#{node.numErrors}</span>
-                </rich:treeNode>
-                <rich:treeNode type="warning">
-                    <h:outputLink value="#{node.url}" title="#{node.title}" styleClass="problem-warning problem-small">
-                        <h:outputText value="#{node.name}" />
-                    </h:outputLink>
-                </rich:treeNode>
-            </rich:tree>
+            <div id="infoPanel"/>
+            <div id="errorsPanel"></div>
+            <div id="warningsPanel"></div>
 
             <script>
                 //<![CDATA[
-                $j(function () {
-                    var hasProblems = #{problemsBean.hasProblems ? 'true' : 'false'};
-                    if (ws && ws.nav.isProjectChanged()) {
-                        if (hasProblems) {
-                            ws.ui.problems.show();
-                        } else {
-                            ws.ui.problems.hide();
-                        }
-                    }
+                var $jq = jQuery.noConflict();
+                var messageId = -1;
+                var messageIndex = -1;
+
+                $jq('#infoPanel').bind('refresh', function (e) {
+                    $jq.ajax({
+                        url: "#{contextPath}/webstudio/web/compile/progress/" + messageId + "/" + messageIndex,
+                        datatype: "text"
+                    })
+                        .done(function (data) {
+                            var box = $jq(e.target);
+                            box.text(Math.round(data.modulesCompiled / data.modulesCount * 100) + "% completed");
+                            messageIndex = data.messageIndex;
+                            messageId = data.messageId;
+
+                            var warningsPanel = document.getElementById("warningsPanel");
+                            var errorsPanel = document.getElementById("errorsPanel");
+                            var warningsHtml = "";
+                            var errorsHtml = "";
+
+                            data.messages.forEach(function (item) {
+                                if (item.severity === 'WARN') {
+                                    warningsHtml +=
+                                        "<a href = "+item.url+" title class='problem-warning problem-small'>"+item.summary+"</a>";
+                                } else if(item.severity === 'ERROR') {
+                                    errorsHtml +=
+                                        "<a href = "+item.url+" title class='problem-error problem-small'>"+item.summary+"</a>";
+                                }
+                            });
+
+                            var warningsDiv = document.createElement("DIV");
+                            var errorsDiv = document.createElement("DIV");
+
+                            if (data.dataType === 'new') {
+                                warningsDiv.innerHTML = warningsHtml;
+                                errorsDiv.innerHTML = errorsHtml;
+                            } else {
+                                warningsDiv.innerHTML += warningsHtml;
+                                errorsDiv.innerHTML += errorsHtml;
+                            }
+
+                            warningsPanel.appendChild(warningsDiv);
+                            errorsPanel.appendChild(errorsDiv);
+                        });
                 });
+
+                $jq('#infoPanel').trigger('refresh');
+                setInterval(function () {$jq('#infoPanel').trigger('refresh')}, 1000);//time in milliseconds
+
                 //]]>
             </script>
         </div>
