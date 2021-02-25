@@ -21,7 +21,7 @@ public class ProcessedCode {
      */
     private IBoundCode boundCode;
 
-    private Collection<OpenLMessage> messages;
+    private Collection<OpenLMessage> allMessages;
 
     /**
      * Gets parsed code.
@@ -59,15 +59,15 @@ public class ProcessedCode {
         this.boundCode = boundCode;
     }
 
-    public Collection<OpenLMessage> getMessages() {
-        if (messages != null) {
-            return Collections.unmodifiableCollection(messages);
+    public Collection<OpenLMessage> getAllMessages() {
+        if (allMessages != null) {
+            return Collections.unmodifiableCollection(allMessages);
         }
         return Collections.emptyList();
     }
 
-    public void setMessages(Collection<OpenLMessage> messages) {
-        this.messages = messages;
+    public void setAllMessages(Collection<OpenLMessage> allMessages) {
+        this.allMessages = allMessages;
     }
 
 }

@@ -132,7 +132,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
                         new CompiledOpenClass(NullOpenClass.the, Collections.singletonList(new OpenLErrorMessage(e))));
                 }
                 if (compiledDependency.getCompiledOpenClass()
-                    .getMessages()
+                    .getAllMessages()
                     .stream()
                     .anyMatch(e -> e instanceof CompilationInterruptedOpenLErrorMessage)) {
                     if (!shutdowned) {

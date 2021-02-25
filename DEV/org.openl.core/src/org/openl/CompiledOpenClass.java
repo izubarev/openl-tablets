@@ -18,7 +18,7 @@ import org.openl.types.IOpenClass;
  */
 public class CompiledOpenClass {
 
-    private final Collection<OpenLMessage> messages;
+    private final Collection<OpenLMessage> allMessages;
 
     private final IOpenClass openClass;
 
@@ -26,13 +26,13 @@ public class CompiledOpenClass {
 
     private final ClassLoader classLoader;
 
-    public CompiledOpenClass(IOpenClass openClass, Collection<OpenLMessage> messages) {
+    public CompiledOpenClass(IOpenClass openClass, Collection<OpenLMessage> allMessages) {
         this.openClass = Objects.requireNonNull(openClass, "openClass cannot be null");
-        if (messages == null) {
-            this.messages = Collections.emptyList();
+        if (allMessages == null) {
+            this.allMessages = Collections.emptyList();
         } else {
-            this.messages = Collections.unmodifiableCollection(messages);
-            this.hasErrors = !OpenLMessagesUtils.filterMessagesBySeverity(messages, Severity.ERROR).isEmpty();
+            this.allMessages = Collections.unmodifiableCollection(allMessages);
+            this.hasErrors = !OpenLMessagesUtils.filterMessagesBySeverity(allMessages, Severity.ERROR).isEmpty();
         }
         this.classLoader = Thread.currentThread().getContextClassLoader();
     }
@@ -52,14 +52,14 @@ public class CompiledOpenClass {
 
     public void throwErrorExceptionsIfAny() {
         if (hasErrors()) {
-            Collection<OpenLMessage> errorMessages = OpenLMessagesUtils.filterMessagesBySeverity(messages,
+            Collection<OpenLMessage> errorMessages = OpenLMessagesUtils.filterMessagesBySeverity(allMessages,
                 Severity.ERROR);
             throw new CompositeOpenlException("Module contains critical errors", null, errorMessages);
         }
     }
 
-    public Collection<OpenLMessage> getMessages() {
-        return messages;
+    public Collection<OpenLMessage> getAllMessages() {
+        return allMessages;
     }
 
     public Collection<IOpenClass> getTypes() {

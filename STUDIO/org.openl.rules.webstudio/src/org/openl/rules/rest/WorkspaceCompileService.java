@@ -50,7 +50,7 @@ public class WorkspaceCompileService {
                     }
                     CompiledDependency compiledDependency = dependencyLoader.getRefToCompiledDependency();
                     if (compiledDependency != null) {
-                        for (OpenLMessage message : compiledDependency.getCompiledOpenClass().getMessages()) {
+                        for (OpenLMessage message : compiledDependency.getCompiledOpenClass().getAllMessages()) {
                             MessageDescription messageDescription = getMessageDescription(message, model);
                             newMessages.add(messageDescription);
                         }

@@ -33,7 +33,7 @@ final class OpenApiProjectValidatorMessagesUtils {
     }
 
     private static boolean isNotExistingError(ValidatedCompiledOpenClass validatedCompiledOpenClass, String summary) {
-        for (OpenLMessage openLMessage : validatedCompiledOpenClass.getMessages()) {
+        for (OpenLMessage openLMessage : validatedCompiledOpenClass.getAllMessages()) {
             if (openLMessage.isError() && Objects.equals(openLMessage.getSummary(), summary)) {
                 return false;
             }
@@ -49,7 +49,7 @@ final class OpenApiProjectValidatorMessagesUtils {
     }
 
     private static boolean isNotExistingWarning(String summary, ValidatedCompiledOpenClass validatedCompiledOpenClass) {
-        for (OpenLMessage openLMessage : validatedCompiledOpenClass.getMessages()) {
+        for (OpenLMessage openLMessage : validatedCompiledOpenClass.getAllMessages()) {
             if (openLMessage.getSeverity().equals(Severity.WARN) && Objects.equals(openLMessage.getSummary(),
                 summary)) {
                 return false;

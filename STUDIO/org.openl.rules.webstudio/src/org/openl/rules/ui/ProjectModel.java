@@ -16,10 +16,6 @@ import org.openl.rules.project.validation.openapi.OpenApiProjectValidator;
 import org.openl.CompiledOpenClass;
 import org.openl.OpenClassUtil;
 import org.openl.base.INamedThing;
-import org.openl.dependency.CompiledDependency;
-import org.openl.dependency.IDependencyManager;
-import org.openl.exception.OpenLCompilationException;
-import org.openl.exception.OpenlNotCheckedException;
 import org.openl.message.OpenLMessage;
 import org.openl.message.OpenLMessagesUtils;
 import org.openl.message.Severity;
@@ -37,7 +33,6 @@ import org.openl.rules.lang.xls.syntax.WorkbookSyntaxNode;
 import org.openl.rules.lang.xls.syntax.XlsModuleSyntaxNode;
 import org.openl.rules.project.abstraction.RulesProject;
 import org.openl.rules.project.impl.local.LocalRepository;
-import org.openl.rules.project.instantiation.IDependencyLoader;
 import org.openl.rules.project.instantiation.ReloadType;
 import org.openl.rules.project.instantiation.RulesInstantiationException;
 import org.openl.rules.project.instantiation.RulesInstantiationStrategy;
@@ -477,7 +472,7 @@ public class ProjectModel {
     public Collection<OpenLMessage> getModuleMessages() {
         CompiledOpenClass compiledOpenClass = getCompiledOpenClass();
         if (compiledOpenClass != null) {
-            return compiledOpenClass.getMessages();
+            return compiledOpenClass.getAllMessages();
         }
         return Collections.emptyList();
     }
