@@ -35,7 +35,6 @@ import org.springframework.stereotype.Service;
 @Produces(MediaType.APPLICATION_JSON)
 public class WorkspaceCompileService {
 
-    private static final int MAX_MESSAGES_COUNT = 100;
     private static final MessageHandler messageHandler = new MessageHandler();
 
     @GET
@@ -108,8 +107,7 @@ public class WorkspaceCompileService {
                 if (messageIndex != -1 && messageId != -1) {
                     MessageDescription messageDescription = newMessages.get(messageIndex);
                     if (messageDescription.getId() == messageId) {
-                        newMessages = newMessages.subList(messageIndex + 1,
-                            Math.min(MAX_MESSAGES_COUNT - 1, newMessages.size()));
+                        newMessages = newMessages.subList(messageIndex + 1, newMessages.size());
                         compileModuleInfo.put("dataType", "add");
                     }
                 }
