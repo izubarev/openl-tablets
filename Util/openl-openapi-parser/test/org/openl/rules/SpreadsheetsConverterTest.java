@@ -164,8 +164,8 @@ public class SpreadsheetsConverterTest {
         assertEquals("= 0.0f", floatStep.getValue());
 
         StepModel integerStep = findStep(steps, "numAccidentsFour");
-        assertEquals("BigInteger", integerStep.getType());
-        assertEquals("= java.math.BigInteger.ZERO", integerStep.getValue());
+        assertEquals("Integer", integerStep.getType());
+        assertEquals("= 0", integerStep.getValue());
 
         StepModel objectStep = findStep(steps, "numAccidentsFive");
         assertEquals("Object", objectStep.getType());
@@ -325,8 +325,8 @@ public class SpreadsheetsConverterTest {
         List<InputParameter> hkParameters = hk.getParameters();
         assertEquals(1, hkParameters.size());
         InputParameter decimalParam = hkParameters.iterator().next();
-        assertEquals("[Ljava.math.BigDecimal;", decimalParam.getType().getJavaName());
-        assertEquals("BigDecimal[]", decimalParam.getType().getSimpleName());
+        assertEquals("[Ljava.lang.Double;", decimalParam.getType().getJavaName());
+        assertEquals("Double[]", decimalParam.getType().getSimpleName());
 
         SpreadsheetModel hp = findSpreadsheet(spreadsheetResultModels, "HelloPesi");
         assertEquals("SpreadsheetResultBla[][][]", hp.getType());

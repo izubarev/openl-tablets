@@ -37,7 +37,7 @@ public class RunRestRulesDeploymentTest {
         client.post("/admin/deploy", "/rules-to-deploy.zip", 201);
         client.send("deployed-rules_services.get");
         client.send("deployed-rules_methods.get");
-        client.get("/admin/deploy/rules-to-deploy/rules-to-deploy", "/rules-to-deploy.zip");
+        client.get("/admin/deploy/rules-to-deploy.zip", "/rules-to-deploy.zip");
         client.send("deployed-rules_hello.post");
 
         // should be always redeployed
@@ -73,8 +73,7 @@ public class RunRestRulesDeploymentTest {
         client.post("/admin/deploy", "/multiple-deployment_v2.zip", 201);
         client.send("project1_sayHello_2.post");
 
-        client.send("project1.delete");
-        client.send("yaml_project_project2.delete");
+        client.send("yaml_project_all.delete");
         client.send("admin_services_no_services.json.get");
     }
 
@@ -180,14 +179,12 @@ public class RunRestRulesDeploymentTest {
 
         client.post("/admin/deploy", "/EPBDS-10891/EPBDS-10891.zip", 201);
         client.send("EPBDS-10891/services.get");
-        client.send("EPBDS-10891/yaml_project_Project1.delete");
-        client.send("EPBDS-10891/yaml_project_Project2.delete");
+        client.send("EPBDS-10891/yaml_project_all.delete");
         client.send("admin_services_no_services.json.get");
 
         client.post("/admin/deploy", "/EPBDS-10891/EPBDS-10891.zip", 201);
         client.send("EPBDS-10891/services.get");
-        client.send("EPBDS-10891/yaml_project_Project1.delete");
-        client.send("EPBDS-10891/yaml_project_Project2.delete");
+        client.send("EPBDS-10891/yaml_project_all.delete");
         client.send("admin_services_no_services.json.get");
     }
 
@@ -211,8 +208,32 @@ public class RunRestRulesDeploymentTest {
         client.send("admin_services_no_services.json.get");
         client.post("/admin/deploy/EPBDS-10916%20+Whitespaces in Name #", "/EPBDS-11144/EPBDS-10916%20+Whitespaces in Name #.zip", 201);
         client.send("EPBDS-11144/deployed-rules_services.get");
-        client.get("/admin/deploy/EPBDS-10916%20+Whitespaces in Name/EPBDS-10916%20+Whitespaces in Name", 200,"/EPBDS-11144/EPBDS-10916%20+Whitespaces in Name #.zip");
+        client.get("/admin/deploy/EPBDS-10916%20+Whitespaces in Name.zip","/EPBDS-11144/EPBDS-10916%20+Whitespaces in Name #.zip");
         client.send("EPBDS-11144/delete.delete");
+        client.send("admin_services_no_services.json.get");
+    }
+
+    @Test
+    public void EPBDS_8987() {
+        client.send("admin_services_no_services.json.get");
+        client.post("/admin/deploy/someDeployment", "/EPBDS-8987/someDeployment.zip", 201);
+        client.send("EPBDS-8987/deployed-rules_services_1.get");
+        client.post("/admin/deploy/multiple-deployment_v1", "/EPBDS-8987/multiple-deployment_v1.zip", 201);
+        // 3 projects are exposed but should one. Currently it's not possible to fix for DB because of restrictions in repository design
+        // it works in different way for Folder Repositories
+        client.send("EPBDS-8987/deployed-rules_services_2.get");
+        client.send("EPBDS-8987/delete_all_1.delete");
+        client.send("admin_services_no_services.json.get");
+        client.post("/admin/deploy/deployment1", "/EPBDS-8987/deployment1.zip", 201);
+        client.send("EPBDS-8987/deployed-rules_services_3.get");
+        client.post("/admin/deploy/deployment2", "/EPBDS-8987/deployment2.zip", 201);
+        // 2 projects are exposed but should one. Checkout the prev comment
+        client.send("EPBDS-8987/deployed-rules_services_4.get");
+        client.send("EPBDS-8987/delete_all_2.delete");
+        client.send("admin_services_no_services.json.get");
+        client.post("/admin/deploy/deployment1", "/EPBDS-8987/deployment1.zip", 201);
+        client.send("EPBDS-8987/deployed-rules_services_3.get");
+        client.send("EPBDS-8987/delete_all_2.delete");
         client.send("admin_services_no_services.json.get");
     }
 }

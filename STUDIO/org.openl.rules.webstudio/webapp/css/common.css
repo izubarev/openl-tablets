@@ -1548,7 +1548,8 @@ table.properties-form.wide .error {
     pointer-events: none;
     cursor: default;
     border-color: lightgray;
-    opacity: 0.3;
+    opacity: 0.4;
+    filter: brightness(50%);
 }
 
 option[value=""]:disabled {
@@ -1574,4 +1575,63 @@ option[value=""]:disabled + option[value=""]:disabled {
  */
 .popup-panel[style*="display: inline-block"] {
     display: block !important;
+}
+
+.edit-icon:after {
+    content: "✎";
+    color: #a82;
+    display: inline-block;
+    transform: scaleX(-1);
+}
+
+.delete-icon:after {
+    content: "✖";
+    color: #a00;
+    font-weight: bold;
+}
+
+.warning-icon:after {
+    content: "⚠";
+    color: #a00;
+}
+
+.yes-icon:after {
+    content: "✔";
+    color: #6b6;
+}
+
+.check-icon:after {
+    content: "✔";
+    color: gray;
+}
+
+.no-icon:after {
+    content: "✘";
+    color: #a00;
+}
+
+.warning-icon, .delete-icon, .edit-icon, .yes-icon, .no-icon, .check-icon {
+    display: inline-block;
+    padding: 0 2px;
+    font-size: 14px;
+    text-decoration: none;
+    width: 16px;
+    height: 16px;
+    text-shadow: 1px 1px 3px;
+    line-height: 16px;
+}
+
+.clickable {
+    cursor:pointer;
+    text-decoration: underline dotted cadetblue;
+}
+
+.clickable:hover {
+    text-shadow: 1px 1px 3px cadetblue;
+    text-decoration: none;
+    filter: saturate(80%);
+}
+
+.actionImage {
+    vertical-align: top;
 }

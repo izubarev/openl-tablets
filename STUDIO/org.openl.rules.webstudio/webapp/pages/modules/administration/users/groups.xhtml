@@ -18,7 +18,8 @@
         <tbody>
         <a4j:repeat value="#{groupsBean.groups}" var="group">
         <tr>
-            <td>#{group.name}</td>
+            <td><span onclick="editGroup('#{utils.toJSText(group.name)}', '#{utils.toJSText(group.description)}', #{groupsBean.isOnlyAdmin(group)})"
+                      title="Edit" style="white-space: pre;" class="clickable">#{group.name}</span></td>
             <td>#{group.description}</td>
             <td>
                 <a4j:repeat var="groupName" value="#{groupsBean.getIncludedGroups(group)}">
@@ -34,16 +35,11 @@
                 </a4j:repeat>
             </td>
             <td>
-                <a href="javascript:void(0)"
-                    onclick="editGroup('#{utils.toJSText(group.name)}', '#{utils.toJSText(group.description)}', #{groupsBean.isOnlyAdmin(group)})"
-                    title="Edit"><img src="#{request.contextPath}/images/edit2.gif" /></a>
                 <a4j:commandLink execute="@this" render=":userList :addGroupPrivilegeList :addUserGroups :editUserGroups @form"
                     rendered="#{!groupsBean.isOnlyAdmin(group)}"
                     action="#{groupsBean.deleteGroup(group.name)}"
                     onclick="if(!window.confirm('Are you sure you want to delete the group?')) {return false;}"
-                    title="Delete">
-                    <h:graphicImage url="/images/delete.png" />
-                </a4j:commandLink>
+                    title="Delete" styleClass="delete-icon"></a4j:commandLink>
             </td>
         </tr>
         </a4j:repeat>

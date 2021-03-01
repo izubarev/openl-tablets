@@ -3,6 +3,7 @@ package org.openl.rules.webstudio.security;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Hashtable;
+import java.util.function.Function;
 
 import javax.naming.CompositeName;
 import javax.naming.ConfigurationException;
@@ -35,6 +36,7 @@ import org.springframework.security.ldap.userdetails.UserDetailsContextMapper;
 public class LdapToOpenLUserDetailsMapper implements UserDetailsContextMapper {
     private final Logger log = LoggerFactory.getLogger(LdapToOpenLUserDetailsMapper.class);
     private final UserDetailsContextMapper delegate;
+    private final Function<SimpleUser, SimpleUser> authoritiesMapper;
 
     private final String groupFilter;
 
@@ -44,8 +46,11 @@ public class LdapToOpenLUserDetailsMapper implements UserDetailsContextMapper {
     private final String rootDn;
     private final String searchFilter;
 
-    public LdapToOpenLUserDetailsMapper(UserDetailsContextMapper delegate, PropertyResolver propertyResolver) {
+    public LdapToOpenLUserDetailsMapper(UserDetailsContextMapper delegate,
+            PropertyResolver propertyResolver,
+            Function<SimpleUser, SimpleUser> authoritiesMapper) {
         this.delegate = delegate;
+        this.authoritiesMapper = authoritiesMapper;
         String domainProperty = propertyResolver.getProperty("security.ad.domain");
         this.domain = StringUtils.isNotBlank(domainProperty) ? domainProperty.toLowerCase() : null;
         this.url = propertyResolver.getProperty("security.ad.server-url");
@@ -55,7 +60,6 @@ public class LdapToOpenLUserDetailsMapper implements UserDetailsContextMapper {
         rootDn = this.domain == null ? null : rootDnFromDomain(this.domain);
     }
 
-    
     @Override
     public UserDetails mapUserFromContext(DirContextOperations ctx,
             String username,
@@ -77,7 +81,29 @@ public class LdapToOpenLUserDetailsMapper implements UserDetailsContextMapper {
                 privileges.add(new SimplePrivilege(authority.getAuthority(), authority.getAuthority()));
             }
         }
-        return new SimpleUser(firstName, lastName, userDetails.getUsername(), null, privileges);
+        String fixedUsername = fixCaseMatching(ctx, username);
+        SimpleUser simpleUser = new SimpleUser(firstName, lastName, fixedUsername, null, privileges);
+        return authoritiesMapper.apply(simpleUser);
+    }
+
+    private String fixCaseMatching(DirContextOperations ctx, String username) {
+        String userPrincipalName = ctx.getStringAttribute("userPrincipalName");
+        if (username.equalsIgnoreCase(userPrincipalName)) {
+            return userPrincipalName;
+        }
+        String sAMAccountName = ctx.getStringAttribute("sAMAccountName");
+        if (username.equalsIgnoreCase(sAMAccountName)) {
+            return sAMAccountName;
+        }
+        String uid = ctx.getStringAttribute("uid");
+        if (username.equalsIgnoreCase(uid)) {
+            return uid;
+        }
+        String krbPrincipalName = ctx.getStringAttribute("krbPrincipalName");
+        if (username.equalsIgnoreCase(krbPrincipalName)) {
+            return krbPrincipalName;
+        }
+        return username.toLowerCase();
     }
 
     @Override
@@ -134,8 +160,10 @@ public class LdapToOpenLUserDetailsMapper implements UserDetailsContextMapper {
             userSearch.close();
 
             // Find all groups
-            NamingEnumeration<SearchResult> groupsSearch = context
-                    .search(searchBaseDn, groupFilter, new Object[] { bindPrincipal, username, userData.getDn() }, searchControls);
+            NamingEnumeration<SearchResult> groupsSearch = context.search(searchBaseDn,
+                groupFilter,
+                new Object[] { bindPrincipal, username, userData.getDn() },
+                searchControls);
 
             // Fill authorities using search result
             ArrayList<GrantedAuthority> authorities = new ArrayList<>();

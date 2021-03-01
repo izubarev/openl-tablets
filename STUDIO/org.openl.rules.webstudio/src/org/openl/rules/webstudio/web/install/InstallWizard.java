@@ -14,8 +14,6 @@ import java.security.cert.X509Certificate;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -31,7 +29,6 @@ import javax.faces.context.FacesContext;
 import javax.faces.event.AjaxBehaviorEvent;
 import javax.faces.validator.ValidatorException;
 import javax.naming.directory.InvalidSearchFilterException;
-import javax.servlet.ServletContext;
 
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.flywaydb.core.api.FlywayException;
@@ -40,16 +37,7 @@ import org.openl.config.InMemoryProperties;
 import org.openl.config.PropertiesHolder;
 import org.openl.info.OpenLVersion;
 import org.openl.rules.repository.RepositoryMode;
-import org.openl.rules.security.Group;
-import org.openl.rules.security.Privilege;
-import org.openl.rules.security.Privileges;
-import org.openl.rules.security.SimpleGroup;
-import org.openl.rules.security.SimpleUser;
-import org.openl.rules.security.User;
 import org.openl.rules.webstudio.security.KeyStoreUtils;
-import org.openl.rules.webstudio.service.GroupManagementService;
-import org.openl.rules.webstudio.service.GroupManagementServiceWrapper;
-import org.openl.rules.webstudio.service.UserManagementService;
 import org.openl.rules.webstudio.util.WebStudioValidationUtils;
 import org.openl.rules.webstudio.web.admin.ConnectionProductionRepoController;
 import org.openl.rules.webstudio.web.admin.FolderStructureSettings;
@@ -71,7 +59,6 @@ import org.springframework.security.ldap.authentication.ad.ActiveDirectoryLdapAu
 import org.springframework.stereotype.Service;
 import org.springframework.util.ResourceUtils;
 import org.springframework.web.context.annotation.SessionScope;
-import org.springframework.web.context.support.XmlWebApplicationContext;
 
 @Service
 @SessionScope
@@ -82,8 +69,7 @@ public class InstallWizard implements Serializable {
     private static final String CAS_USER_MODE = "cas";
     private static final String SAML_USER_MODE = "saml";
     private static final String USER_MODE_DEMO = "demo";
-    private static final String VIEWERS_GROUP = "Viewers";
-    private static final String ADMINISTRATORS_GROUP = "Administrators";
+    private static final String VIEWERS_GROUP = "Authenticated";
 
     private final Logger log = LoggerFactory.getLogger(InstallWizard.class);
 
@@ -125,16 +111,13 @@ public class InstallWizard implements Serializable {
     // Reuse existing controllers
     private ConnectionProductionRepoController connectionProductionRepoController;
 
-    private final GroupManagementService groupManagementService;
-    private XmlWebApplicationContext dbContext;
-    private Boolean allowAccessToNewUsers;
+    private String defaultGroup;
     private String externalAdmins;
 
     private final PropertyResolver propertyResolver;
     private final PropertiesHolder properties;
 
-    public InstallWizard(GroupManagementService groupManagementService, PropertyResolver propertyResolver) {
-        this.groupManagementService = groupManagementService;
+    public InstallWizard(PropertyResolver propertyResolver) {
         this.propertyResolver = propertyResolver;
         this.properties = new InMemoryProperties(propertyResolver);
     }
@@ -215,32 +198,19 @@ public class InstallWizard implements Serializable {
                     case AD_USER_MODE:
                         groupsAreManagedInStudio = propertyResolver
                             .getRequiredProperty("security.ad.groups-are-managed-in-studio", Boolean.class);
-                        allowAccessToNewUsers = !StringUtils
-                            .isBlank(propertyResolver.getProperty("security.ad.default-group"));
                         break;
                     case CAS_USER_MODE:
                         groupsAreManagedInStudio = StringUtils
                             .isBlank(propertyResolver.getProperty("security.cas.attribute.groups"));
-                        allowAccessToNewUsers = !StringUtils
-                            .isBlank(propertyResolver.getProperty("security.cas.default-group"));
                         break;
                     case SAML_USER_MODE:
                         groupsAreManagedInStudio = StringUtils
                             .isBlank(propertyResolver.getProperty("security.saml.attribute.groups"));
-                        allowAccessToNewUsers = !StringUtils
-                            .isBlank(propertyResolver.getProperty("security.saml.default-group"));
                         break;
                 }
-            } else if (step == 4) {
-                initializeDbContext();
 
-                if (groupManagementService instanceof GroupManagementServiceWrapper) {
-                    // GroupManagementService delegate is transactional and properly initialized
-                    GroupManagementService delegate = (GroupManagementService) dbContext
-                        .getBean("groupManagementService");
-                    // Initialize groupManagementService before first usage in GroupsBean
-                    ((GroupManagementServiceWrapper) groupManagementService).setDelegate(delegate);
-                }
+                defaultGroup = propertyResolver.getProperty("security.default-group");
+                externalAdmins = propertyResolver.getProperty("security.administrators");
 
             }
             return PAGE_PREFIX + step + PAGE_POSTFIX;
@@ -254,22 +224,6 @@ public class InstallWizard implements Serializable {
             step--;
             return null;
         }
-    }
-
-    private void initializeDbContext() {
-        destroyDbContext();
-
-        setProductionDbProperties();
-
-        migrateDatabase();
-
-        // Load groupDao and initialize groupManagementService
-        dbContext = new XmlWebApplicationContext();
-        dbContext.setServletContext((ServletContext) WebStudioUtils.getExternalContext().getContext());
-        dbContext.setConfigLocations("/WEB-INF/spring/security/db-services.xml");
-        dbContext.addBeanFactoryPostProcessor(beanFactory -> beanFactory.registerSingleton("propertyLoader",
-            new DelegatedPropertySourceLoader(properties)));
-        dbContext.refresh();
     }
 
     private void readDbProperties() {
@@ -287,7 +241,6 @@ public class InstallWizard implements Serializable {
     private void readCasProperties() {
         casSettings = new CASSettings(propertyResolver.getProperty("security.cas.app-url"),
             propertyResolver.getProperty("security.cas.cas-server-url-prefix"),
-            propertyResolver.getProperty("security.cas.default-group"),
             propertyResolver.getProperty("security.cas.attribute.first-name"),
             propertyResolver.getProperty("security.cas.attribute.last-name"),
             propertyResolver.getProperty("security.cas.attribute.groups"));
@@ -301,7 +254,6 @@ public class InstallWizard implements Serializable {
             propertyResolver.getProperty("security.saml.keystore-password"),
             propertyResolver.getProperty("security.saml.keystore-sp-alias"),
             propertyResolver.getProperty("security.saml.keystore-sp-password"),
-            propertyResolver.getProperty("security.saml.default-group"),
             propertyResolver.getProperty("security.saml.attribute.username"),
             propertyResolver.getProperty("security.saml.attribute.first-name"),
             propertyResolver.getProperty("security.saml.attribute.last-name"),
@@ -324,24 +276,16 @@ public class InstallWizard implements Serializable {
         try {
             if (MULTI_USER_MODE.equals(userMode)) {
                 setProductionDbProperties();
-                migrateDatabase();
             } else {
                 if (AD_USER_MODE.equals(userMode)) {
-                    fillDbForUserManagement();
 
                     properties.setProperty("security.ad.domain", adDomain);
                     properties.setProperty("security.ad.server-url", adUrl);
                     properties.setProperty("security.ad.search-filter", ldapFilter);
                     properties.setProperty("security.ad.groups-are-managed-in-studio", groupsAreManagedInStudio);
-                    properties.setProperty("security.ad.default-group", allowAccessToNewUsers ? VIEWERS_GROUP : "");
                 } else if (CAS_USER_MODE.equals(userMode)) {
-                    fillDbForUserManagement();
-
-                    casSettings.setDefaultGroup(allowAccessToNewUsers ? VIEWERS_GROUP : "");
-
                     properties.setProperty("security.cas.app-url", casSettings.getWebStudioUrl());
                     properties.setProperty("security.cas.cas-server-url-prefix", casSettings.getCasServerUrl());
-                    properties.setProperty("security.cas.default-group", casSettings.getDefaultGroup());
                     properties.setProperty("security.cas.attribute.first-name", casSettings.getFirstNameAttribute());
                     properties.setProperty("security.cas.attribute.last-name", casSettings.getSecondNameAttribute());
                     properties.setProperty("security.cas.attribute.groups", casSettings.getGroupsAttribute());
@@ -350,9 +294,6 @@ public class InstallWizard implements Serializable {
                     if (StringUtils.isNotBlank(serverCertificate)) {
                         importCertificateToKeystore(serverCertificate);
                     }
-                    fillDbForUserManagement();
-
-                    samlSettings.setDefaultGroup(allowAccessToNewUsers ? VIEWERS_GROUP : "");
 
                     properties.setProperty("security.saml.app-url", samlSettings.getWebStudioUrl());
                     properties.setProperty("security.saml.saml-server-metadata-url",
@@ -362,7 +303,6 @@ public class InstallWizard implements Serializable {
                     properties.setProperty("security.saml.keystore-password", samlSettings.getKeystorePassword());
                     properties.setProperty("security.saml.keystore-sp-alias", samlSettings.getKeystoreSpAlias());
                     properties.setProperty("security.saml.keystore-sp-password", samlSettings.getKeystoreSpPassword());
-                    properties.setProperty("security.saml.default-group", samlSettings.getDefaultGroup());
                     properties.setProperty("security.saml.attribute.username", samlSettings.getUsernameAttribute());
                     properties.setProperty("security.saml.attribute.first-name", samlSettings.getFirstNameAttribute());
                     properties.setProperty("security.saml.attribute.last-name", samlSettings.getSecondNameAttribute());
@@ -389,6 +329,9 @@ public class InstallWizard implements Serializable {
             productionRepositoryEditor.save();
 
             properties.setProperty("user.mode", userMode);
+            properties.setProperty("security.default-group", defaultGroup);
+            properties.setProperty("security.administrators", externalAdmins);
+
 
             designRepositoryConfiguration.commit();
             if (!isUseDesignRepo()) {
@@ -399,7 +342,6 @@ public class InstallWizard implements Serializable {
             DynamicPropertySource.get().save(properties.getConfig());
 
             destroyRepositoryObjects();
-            destroyDbContext();
 
             FacesContext.getCurrentInstance()
                 .getExternalContext()
@@ -443,50 +385,6 @@ public class InstallWizard implements Serializable {
             throw new IllegalStateException("The keystore of the application can't be saved", e);
         }
 
-    }
-
-    private void fillDbForUserManagement() {
-        if (groupsAreManagedInStudio) {
-            initializeDbContext();
-            GroupManagementService groupManagementService = (GroupManagementService) dbContext
-                .getBean("groupManagementService");
-            UserManagementService userManagementService = (UserManagementService) dbContext
-                .getBean("userManagementService");
-
-            if (allowAccessToNewUsers) {
-                if (!groupManagementService.isGroupExist(VIEWERS_GROUP)) {
-                    Group group = new SimpleGroup(VIEWERS_GROUP,
-                        null,
-                        new ArrayList<>(Collections.singletonList(Privileges.VIEW_PROJECTS)));
-                    groupManagementService.addGroup(group);
-                }
-            }
-
-            if (!groupManagementService.isGroupExist(ADMINISTRATORS_GROUP)) {
-                Group group = new SimpleGroup(ADMINISTRATORS_GROUP,
-                    null,
-                    new ArrayList<>(Collections.singletonList(Privileges.ADMIN)));
-                groupManagementService.addGroup(group);
-            }
-            Group administrator = groupManagementService.getGroupByName(ADMINISTRATORS_GROUP);
-            List<Privilege> adminGroups = new ArrayList<>(Collections.singleton(administrator));
-
-            // Delete example users
-            for (User user : userManagementService.getAllUsers()) {
-                userManagementService.deleteUser(user.getUsername());
-            }
-
-            // Create admin users
-            for (String username : StringUtils.split(externalAdmins, ',')) {
-                if (!username.isEmpty()) {
-                    userManagementService.addUser(new SimpleUser(null, null, username, null, adminGroups));
-                }
-            }
-            setProductionDbProperties();
-            migrateDatabase();
-        } else {
-            setProductionDbProperties();
-        }
     }
 
     private void setProductionDbProperties() {
@@ -783,11 +681,11 @@ public class InstallWizard implements Serializable {
     }
 
     public void setAllowAccessToNewUsers(Boolean allowAccessToNewUsers) {
-        this.allowAccessToNewUsers = allowAccessToNewUsers;
+        defaultGroup = Boolean.TRUE.equals(allowAccessToNewUsers) ? VIEWERS_GROUP : "";
     }
 
     public Boolean getAllowAccessToNewUsers() {
-        return allowAccessToNewUsers;
+        return StringUtils.isNotBlank(defaultGroup);
     }
 
     public void setExternalAdmins(String externalAdmins) {
@@ -937,18 +835,6 @@ public class InstallWizard implements Serializable {
     @PreDestroy
     public void destroy() {
         destroyRepositoryObjects();
-        destroyDbContext();
-    }
-
-    private void migrateDatabase() {
-        try (XmlWebApplicationContext ctx = new XmlWebApplicationContext()) {
-            ctx.setServletContext((ServletContext) WebStudioUtils.getExternalContext().getContext());
-            ctx.setConfigLocations("classpath:META-INF/standalone/spring/security-hibernate-beans.xml");
-            ctx.addBeanFactoryPostProcessor(beanFactory -> beanFactory.registerSingleton("propertyLoader",
-                new DelegatedPropertySourceLoader(properties)));
-            ctx.refresh();
-            ctx.getBean("dbMigration");
-        }
     }
 
     private void initProductionRepositoryEditor() {
@@ -973,16 +859,6 @@ public class InstallWizard implements Serializable {
                 log.error(e.getMessage(), e);
             }
             productionRepositoryFactoryProxy = null;
-        }
-    }
-
-    private void destroyDbContext() {
-        if (dbContext != null) {
-            if (groupManagementService instanceof GroupManagementServiceWrapper) {
-                ((GroupManagementServiceWrapper) groupManagementService).setDelegate(null);
-            }
-            dbContext.close();
-            dbContext = null;
         }
     }
 }

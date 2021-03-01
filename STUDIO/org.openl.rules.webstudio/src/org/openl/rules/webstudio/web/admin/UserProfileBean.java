@@ -18,12 +18,8 @@ import org.openl.rules.security.SimpleUser;
 import org.openl.rules.security.User;
 import org.openl.rules.webstudio.security.CurrentUserInfo;
 import org.openl.util.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.annotation.RequestScope;
 
@@ -31,14 +27,10 @@ import org.springframework.web.context.annotation.RequestScope;
 @RequestScope
 public class UserProfileBean extends UsersBean {
     public static final String VALIDATION_MAX = "Must be less than 25";
-    private final Logger log = LoggerFactory.getLogger(UserProfileBean.class);
 
     private User user;
     private String newPassword;
     private String confirmPassword;
-    @Autowired
-    private CurrentUserInfo currentUserInfo;
-    private org.openl.rules.security.User simpleUser;
     private boolean isPasswordValid = false;
     private String currentPassword;
     private String userPassword;
@@ -62,10 +54,8 @@ public class UserProfileBean extends UsersBean {
         } else if (authentication.getDetails() instanceof User) {
             user = (User) authentication.getDetails();
         } else {
-            try {
-                user = userManagementService.loadUserByUsername(getUsername());
-            } catch (UsernameNotFoundException e) {
-                log.warn("User details for user '" + getUsername() + "' cannot be retrieved.");
+            user = userManagementService.loadUserByUsername(getUsername());
+            if (user == null) {
                 user = new SimpleUser(null, null, getUsername(), null, Collections.emptyList());
             }
         }
@@ -120,12 +110,7 @@ public class UserProfileBean extends UsersBean {
             userLastName = getLastName();
         }
 
-        simpleUser = new SimpleUser(getUserFirstName(),
-            getUserLastName(),
-            getUsername(),
-            currentPassword,
-            getPriveleges());
-        userManagementService.updateUser(simpleUser);
+        userManagementService.updateUserData(getUsername(), userFirstName, userLastName, currentPassword, isPasswordValid);
 
         Authentication authentication = currentUserInfo.getAuthentication();
         SimpleUser user = null;
@@ -194,14 +179,6 @@ public class UserProfileBean extends UsersBean {
 
     public void setConfirmPassword(String confirmPassword) {
         this.confirmPassword = confirmPassword;
-    }
-
-    public org.openl.rules.security.User getSimpleUser() {
-        return simpleUser;
-    }
-
-    public void setSimpleUser(org.openl.rules.security.User simpleUser) {
-        this.simpleUser = simpleUser;
     }
 
     public String getCurrentPassword() {

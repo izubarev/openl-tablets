@@ -162,6 +162,27 @@ public class FileSystemRepository implements FolderRepository, Closeable {
         return true;
     }
 
+    @Override
+    public boolean delete(List<FileData> data) throws IOException {
+        boolean deleted = false;
+        for (FileData fd : data) {
+            File f = new File(root, fd.getName());
+            try {
+                FileUtils.delete(f);
+                deleted = true;
+            } catch (FileNotFoundException ignored) {
+                continue;
+            }
+            // Delete empty parent folders
+            while (!(f = f.getParentFile()).equals(root) && f.delete()) {
+            }
+        }
+        if (deleted) {
+            invokeListener();
+        }
+        return deleted;
+    }
+
     private FileData copy(String srcName, FileData destData) throws IOException {
         File srcFile = new File(root, srcName);
         String destName = destData.getName();
@@ -383,6 +404,12 @@ public class FileSystemRepository implements FolderRepository, Closeable {
                 }
                 if (file.isDirectory()) {
                     removeAbsentFiles(file, toSave);
+                    File[] files = file.listFiles();
+                    if (files == null || files.length == 0) {
+                        if (!file.delete()) {
+                            LOG.warn("Failed to delete an empty directory: '{}'", file);
+                        }
+                    }
                 } else {
                     if (!toSave.contains(file)) {
                         FileUtils.deleteQuietly(file);
