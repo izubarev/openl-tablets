@@ -536,7 +536,7 @@
                 <c:if test="#{tableBean.hasAnyTests}">
                 <c:set var="oneTest" value="#{fn:length(tableBean.allTests) == 1}" />
                 <td style="padding: 0 10px">
-                    <div id= "test33" style="font-weight: bold; color: #333333; margin-bottom: 2px">Available Tests/Runs</div>
+                    <div style="font-weight: bold; color: #333333; margin-bottom: 2px">Available Tests/Runs</div>
                     <div>
                         <ui:repeat value="#{tableBean.allTests}" var="test2" varStatus="i">
                         <h:panelGroup rendered="#{i.index == 0}">
