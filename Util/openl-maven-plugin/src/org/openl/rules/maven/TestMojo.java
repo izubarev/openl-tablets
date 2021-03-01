@@ -257,7 +257,7 @@ public final class TestMojo extends BaseOpenLMojo {
                     ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();
                     Thread.currentThread().setContextClassLoader(classLoader);
                     try {
-                        compiledOpenClass = new CompiledOpenClass(NullOpenClass.the, messages);
+                        compiledOpenClass = new CompiledOpenClass(NullOpenClass.the, messages, null);
                     } finally {
                         Thread.currentThread().setContextClassLoader(oldClassLoader);
                     }

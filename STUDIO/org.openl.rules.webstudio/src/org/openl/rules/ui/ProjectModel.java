@@ -1020,7 +1020,7 @@ public class ProjectModel {
                 messages.add(new OpenLMessage(message, Severity.ERROR));
             }
 
-            compiledOpenClass = new CompiledOpenClass(NullOpenClass.the, messages);
+            compiledOpenClass = new CompiledOpenClass(NullOpenClass.the, messages, null);
 
             WorkbookLoaders.resetCurrentFactory();
         }

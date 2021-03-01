@@ -17,7 +17,7 @@ public class ValidatedCompiledOpenClass extends CompiledOpenClass {
     boolean hasErrors;
 
     public ValidatedCompiledOpenClass(CompiledOpenClass compiledOpenClass) {
-        super(compiledOpenClass.getOpenClassWithErrors(), compiledOpenClass.getAllMessages());
+        super(compiledOpenClass.getOpenClassWithErrors(), compiledOpenClass.getAllMessages(), null);
         this.delegate = Objects.requireNonNull(compiledOpenClass, "compiledOpenClass cannot be null");
         this.hasErrors = compiledOpenClass.hasErrors();
     }

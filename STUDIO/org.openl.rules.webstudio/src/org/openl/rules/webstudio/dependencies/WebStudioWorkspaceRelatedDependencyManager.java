@@ -95,7 +95,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
                     } else {
                         return new CompiledDependency(dependency.getNode().getIdentifier(),
                             new CompiledOpenClass(NullOpenClass.the,
-                                Collections.singletonList(new CompilationInterruptedOpenLErrorMessage())));
+                                Collections.singletonList(new CompilationInterruptedOpenLErrorMessage()), null));
                     }
                 }
             }
@@ -129,7 +129,7 @@ public class WebStudioWorkspaceRelatedDependencyManager extends AbstractDependen
                     compiledDependency = this.loadDependency(dependency);
                 } catch (OpenLCompilationException e) {
                     compiledDependency = new CompiledDependency(dependency.getNode().getIdentifier(),
-                        new CompiledOpenClass(NullOpenClass.the, Collections.singletonList(new OpenLErrorMessage(e))));
+                        new CompiledOpenClass(NullOpenClass.the, Collections.singletonList(new OpenLErrorMessage(e)), null));
                 }
                 if (compiledDependency.getCompiledOpenClass()
                     .getAllMessages()

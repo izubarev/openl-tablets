@@ -52,7 +52,7 @@ final class WebStudioDependencyLoader extends SimpleDependencyLoader {
         Thread.currentThread().setContextClassLoader(classLoader);
 
         try {
-            return new CompiledDependency(dependencyName, new CompiledOpenClass(NullOpenClass.the, messages));
+            return new CompiledDependency(dependencyName, new CompiledOpenClass(NullOpenClass.the, messages, null));
         } finally {
             Thread.currentThread().setContextClassLoader(oldClassLoader);
         }

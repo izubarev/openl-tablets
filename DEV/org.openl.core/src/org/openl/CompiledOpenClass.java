@@ -20,13 +20,15 @@ public class CompiledOpenClass {
 
     private final Collection<OpenLMessage> allMessages;
 
+    private final Collection<OpenLMessage> messages;
+
     private final IOpenClass openClass;
 
     private boolean hasErrors;
 
     private final ClassLoader classLoader;
 
-    public CompiledOpenClass(IOpenClass openClass, Collection<OpenLMessage> allMessages) {
+    public CompiledOpenClass(IOpenClass openClass, Collection<OpenLMessage> allMessages, Collection<OpenLMessage> messages) {
         this.openClass = Objects.requireNonNull(openClass, "openClass cannot be null");
         if (allMessages == null) {
             this.allMessages = Collections.emptyList();
@@ -35,6 +37,7 @@ public class CompiledOpenClass {
             this.hasErrors = !OpenLMessagesUtils.filterMessagesBySeverity(allMessages, Severity.ERROR).isEmpty();
         }
         this.classLoader = Thread.currentThread().getContextClassLoader();
+        this.messages = messages;
     }
 
     public IOpenClass getOpenClass() {
@@ -60,6 +63,10 @@ public class CompiledOpenClass {
 
     public Collection<OpenLMessage> getAllMessages() {
         return allMessages;
+    }
+
+    public Collection<OpenLMessage> getMessages() {
+        return messages;
     }
 
     public Collection<IOpenClass> getTypes() {
