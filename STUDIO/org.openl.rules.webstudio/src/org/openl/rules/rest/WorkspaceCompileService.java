@@ -47,8 +47,6 @@ public class WorkspaceCompileService {
         if (webStudio != null) {
             ProjectModel model = webStudio.getModel();
             Module moduleInfo = model.getModuleInfo();
-            String projectLoaderName = ProjectExternalDependenciesHelper
-                .buildDependencyNameForProject(moduleInfo.getProject().getName());
             WebStudioWorkspaceRelatedDependencyManager webStudioWorkspaceDependencyManager = model
                 .getWebStudioWorkspaceDependencyManager();
             if (webStudioWorkspaceDependencyManager != null) {
@@ -88,17 +86,19 @@ public class WorkspaceCompileService {
                             modulesCount++;
                         }
                     }
-                    for (ProjectDependencyDescriptor pd : projectDescriptor.getDependencies()) {
-                        String projectDependencyName = ProjectExternalDependenciesHelper
-                            .buildDependencyNameForProject(pd.getName());
-                        Collection<IDependencyLoader> dependencyLoadersForProject = webStudioWorkspaceDependencyManager
-                            .getDependencyLoaders()
-                            .get(projectDependencyName);
-                        if (dependencyLoadersForProject != null) {
-                            for (IDependencyLoader dependencyLoader : dependencyLoadersForProject) {
-                                if (dependencyLoader != null && dependencyLoader.isProject()) {
-                                    queue.add(dependencyLoader.getProject());
-                                    break;
+                    if (projectDescriptor.getDependencies() != null) {
+                        for (ProjectDependencyDescriptor pd : projectDescriptor.getDependencies()) {
+                            String projectDependencyName = ProjectExternalDependenciesHelper
+                                    .buildDependencyNameForProject(pd.getName());
+                            Collection<IDependencyLoader> dependencyLoadersForProject = webStudioWorkspaceDependencyManager
+                                    .getDependencyLoaders()
+                                    .get(projectDependencyName);
+                            if (dependencyLoadersForProject != null) {
+                                for (IDependencyLoader dependencyLoader : dependencyLoadersForProject) {
+                                    if (dependencyLoader != null && dependencyLoader.isProject()) {
+                                        queue.add(dependencyLoader.getProject());
+                                        break;
+                                    }
                                 }
                             }
                         }
