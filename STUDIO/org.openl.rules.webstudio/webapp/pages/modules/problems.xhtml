@@ -20,7 +20,15 @@
         </div>
 
         <div class="panel-body container">
-            <div id="progressInfoPanel"/>
+            <div class="messagePanelHolder">
+                <div id="progressInfoPanel" class='messagePanel'/>
+                <div id="errorsInfoPanel" class='messagePanel'>Errors:
+                    <span id="errorsCount" class='badge badge-error'/>
+                </div>
+                <div id="warningsInfoPanel" class='messagePanel'>Warnings:
+                    <span id="warningsCount" class='badge badge-warning'/>
+                </div>
+            </div>
             <div id="errorsPanel"></div>
             <div id="warningsPanel"></div>
 
@@ -36,24 +44,13 @@
                         datatype: "text"
                     })
                         .done(function (data) {
-                            // $jq('#progressInfoPanel').toggle(true);
-                            //jq toggle id true false
-                            var infoPanel = document.getElementById("progressInfoPanel");
-                            var progressHtml = "<div class='messagePanelHolder'><div class='messagePanel'>" + Math.round(data.modulesCompiled / data.modulesCount * 100) + "% (" + data.modulesCompiled +
-                                "/" + data.modulesCount + ") compiled</div>";
-                            if (data.errorsCount !== 0) {
-                                progressHtml += "<div class='messagePanel'> Errors: <span class='badge badge-error'>" + data.errorsCount + "</span></div>";
-                            }
-                            if (data.warningsCount !== 0) {
-                                progressHtml += "<div class='messagePanel'> Warnings: <span class='badge badge-small badge-warning'>" + data.warningsCount + "</span></div>";
-                            }
-                            progressHtml += "</div>";
-                            var progressDiv = document.createElement("DIV");
-                            progressDiv.innerHTML = progressHtml;
-                            if (infoPanel.firstChild) {
-                                infoPanel.removeChild(infoPanel.firstChild);
-                            }
-                            infoPanel.appendChild(progressDiv);
+                            $jq('#progressInfoPanel').text(Math.round(data.modulesCompiled / data.modulesCount * 100) + "% (" + data.modulesCompiled + "/" + data.modulesCount + ") completed");
+
+                            $jq('#errorsInfoPanel').toggle(data.errorsCount !== 0);
+                            $jq('#errorsCount').text(data.errorsCount);
+
+                            $jq('#warningsInfoPanel').toggle(data.warningsCount !== 0);
+                            $jq('#warningsCount').text(data.warningsCount);
 
                             if (data.messageIndex !== -1 && data.messageId !== -1) {
                                 messageIndex = data.messageIndex;
@@ -92,6 +89,7 @@
                             }
                         });
                 });
+
 
                 $jq('#progressInfoPanel').trigger('refresh');
                 setInterval(function () {$jq('#progressInfoPanel').trigger('refresh')}, 1000);//time in milliseconds
