@@ -3,6 +3,7 @@ package org.openl.rules.rest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -17,16 +18,22 @@ import javax.ws.rs.core.Response;
 
 import org.openl.dependency.CompiledDependency;
 import org.openl.message.OpenLMessage;
+import org.openl.rules.lang.xls.TableSyntaxNodeUtils;
+import org.openl.rules.lang.xls.syntax.TableSyntaxNode;
 import org.openl.rules.project.dependencies.ProjectExternalDependenciesHelper;
 import org.openl.rules.project.instantiation.IDependencyLoader;
 import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.ProjectDependencyDescriptor;
 import org.openl.rules.project.model.ProjectDescriptor;
+import org.openl.rules.table.IOpenLTable;
+import org.openl.rules.testmethod.ProjectHelper;
 import org.openl.rules.ui.ProjectModel;
 import org.openl.rules.ui.WebStudio;
 import org.openl.rules.webstudio.dependencies.WebStudioWorkspaceRelatedDependencyManager;
 import org.openl.rules.webstudio.web.MessageHandler;
+import org.openl.rules.webstudio.web.tableeditor.TableBean;
 import org.openl.rules.webstudio.web.util.WebStudioUtils;
+import org.openl.types.IOpenMethod;
 import org.openl.util.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -63,7 +70,6 @@ public class WorkspaceCompileService {
                             .getDependencyLoaders()
                             .get(module.getName());
                         for (IDependencyLoader dependencyLoader : dependencyLoadersForModule) {
-                            if (dependencyLoader != null) {
                                 CompiledDependency compiledDependency = dependencyLoader.getRefToCompiledDependency();
                                 if (compiledDependency != null) {
                                     for (OpenLMessage message : compiledDependency.getCompiledOpenClass()
@@ -81,7 +87,6 @@ public class WorkspaceCompileService {
                                     }
                                     compiledCount++;
                                 }
-                            }
                             modulesCount++;
                         }
                     }
@@ -123,6 +128,51 @@ public class WorkspaceCompileService {
             }
         }
         return Response.ok(compileModuleInfo).build();
+    }
+
+    @GET
+    @Path("tests/{tableId}")
+    public Response getCompile(@PathParam("tableId") final String tableId) {
+        Map<String, Object> tableTestsInfo = new HashMap<>();
+        WebStudio webStudio = WebStudioUtils.getWebStudio(WebStudioUtils.getSession());
+        List<TableBean.TableDescription> tableDescriptions = new ArrayList<>();
+        if (webStudio != null) {
+            ProjectModel model = webStudio.getModel();
+            IOpenLTable table = model.getTableById(tableId);
+            IOpenMethod[] allTests = model.getTestAndRunMethods(table.getUri());
+
+            for (IOpenMethod test : allTests) {
+                TableSyntaxNode syntaxNode = (TableSyntaxNode) test.getInfo().getSyntaxNode();
+                tableDescriptions.add(new TableBean.TableDescription(webStudio.url("table", syntaxNode.getUri()), syntaxNode.getId(), getTestName(test)));
+            }
+            tableDescriptions.sort(Comparator.comparing(TableBean.TableDescription::getName));
+
+            tableTestsInfo.put("allTests", tableDescriptions);
+            tableTestsInfo.put("compiled", isModuleCompiled(model, webStudio));
+        }
+        return Response.ok(tableTestsInfo).build();
+    }
+
+    private boolean isModuleCompiled(ProjectModel model, WebStudio webStudio){
+        String currentProjectDependencyName = ProjectExternalDependenciesHelper
+                .buildDependencyNameForProject(model.getModuleInfo().getProject().getName());
+        WebStudioWorkspaceRelatedDependencyManager webStudioWorkspaceDependencyManager = webStudio.getModel().getWebStudioWorkspaceDependencyManager();
+        Collection<IDependencyLoader> dependencyLoadersForModule = webStudioWorkspaceDependencyManager
+                .getDependencyLoaders()
+                .get(currentProjectDependencyName);
+        for (IDependencyLoader dependencyLoader : dependencyLoadersForModule) {
+            if (dependencyLoader.getRefToCompiledDependency() != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String getTestName(Object testMethod) {
+        IOpenMethod method = (IOpenMethod) testMethod;
+        String name = TableSyntaxNodeUtils.getTestName(method);
+        String info = ProjectHelper.getTestInfo(method);
+        return String.format("%s (%s)", name, info);
     }
 
     private MessageDescription getMessageDescription(OpenLMessage message, ProjectModel model) {
