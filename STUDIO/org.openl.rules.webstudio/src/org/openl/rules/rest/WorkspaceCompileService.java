@@ -16,6 +16,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+import org.openl.CompiledOpenClass;
 import org.openl.dependency.CompiledDependency;
 import org.openl.message.OpenLMessage;
 import org.openl.rules.lang.xls.TableSyntaxNodeUtils;
@@ -35,6 +36,7 @@ import org.openl.rules.webstudio.web.tableeditor.TableBean;
 import org.openl.rules.webstudio.web.util.WebStudioUtils;
 import org.openl.types.IOpenMethod;
 import org.openl.util.StringUtils;
+import org.openl.validation.ValidatedCompiledOpenClass;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -103,6 +105,22 @@ public class WorkspaceCompileService {
                                 }
                             }
                         }
+                    }
+                }
+                CompiledOpenClass compiledOpenClass = webStudio.getModel().getCompiledOpenClass();
+                if (compiledOpenClass instanceof ValidatedCompiledOpenClass) {
+                    for (OpenLMessage message : ((ValidatedCompiledOpenClass) compiledOpenClass)
+                        .getValidationMessages()) {
+                        switch (message.getSeverity()) {
+                            case WARN:
+                                warningsCount++;
+                                break;
+                            case ERROR:
+                                errorsCount++;
+                                break;
+                        }
+                        MessageDescription messageDescription = getMessageDescription(message, model);
+                        newMessages.add(messageDescription);
                     }
                 }
                 compileModuleInfo.put("dataType", "new");
