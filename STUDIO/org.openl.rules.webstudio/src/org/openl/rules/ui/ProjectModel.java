@@ -7,16 +7,7 @@ import static org.openl.rules.security.Privileges.EDIT_TABLES;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -25,6 +16,7 @@ import org.openl.rules.project.validation.openapi.OpenApiProjectValidator;
 import org.openl.CompiledOpenClass;
 import org.openl.OpenClassUtil;
 import org.openl.base.INamedThing;
+import org.openl.dependency.CompiledDependency;
 import org.openl.message.OpenLMessage;
 import org.openl.message.OpenLMessagesUtils;
 import org.openl.message.Severity;
@@ -42,6 +34,7 @@ import org.openl.rules.lang.xls.syntax.WorkbookSyntaxNode;
 import org.openl.rules.lang.xls.syntax.XlsModuleSyntaxNode;
 import org.openl.rules.project.abstraction.RulesProject;
 import org.openl.rules.project.impl.local.LocalRepository;
+import org.openl.rules.project.instantiation.IDependencyLoader;
 import org.openl.rules.project.instantiation.ReloadType;
 import org.openl.rules.project.instantiation.RulesInstantiationException;
 import org.openl.rules.project.instantiation.RulesInstantiationStrategy;
@@ -931,6 +924,24 @@ public class ProjectModel {
         setModuleInfo(moduleInfo, ReloadType.NO);
     }
 
+    private void addAllSyntaxNodes() {
+        for (Collection<IDependencyLoader> collectionDependencyLoaders : webStudioWorkspaceDependencyManager
+                .getDependencyLoaders()
+                .values()) {
+            for (IDependencyLoader dl : collectionDependencyLoaders) {
+                CompiledDependency compiledDependency = dl.getRefToCompiledDependency();
+                if (compiledDependency != null) {
+                    XlsMetaInfo metaInfo = (XlsMetaInfo) compiledDependency.getCompiledOpenClass()
+                            .getOpenClassWithErrors()
+                            .getMetaInfo();
+                    if (metaInfo != null) {
+                        allXlsModuleSyntaxNodes.add(metaInfo.getXlsModuleNode());
+                    }
+                }
+            }
+        }
+    }
+
     public synchronized void setModuleInfo(Module moduleInfo, ReloadType reloadType) throws Exception {
         if (moduleInfo == null || this.moduleInfo == moduleInfo && reloadType == ReloadType.NO) {
             return;
@@ -981,8 +992,7 @@ public class ProjectModel {
                     .getCompiledOpenClass();
 
             // Find all dependent XlsModuleSyntaxNode-s
-            XlsMetaInfo metaInfo = (XlsMetaInfo) thisModuleCompiledOpenClass.getOpenClassWithErrors().getMetaInfo();
-            allXlsModuleSyntaxNodes.add(metaInfo.getXlsModuleNode());
+            addAllSyntaxNodes();
 
             xlsModuleSyntaxNode = findXlsModuleSyntaxNode(thisModuleCompiledOpenClass);
             compiledOpenClass = thisModuleCompiledOpenClass;
