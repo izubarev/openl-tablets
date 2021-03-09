@@ -107,6 +107,11 @@ public abstract class AbstractDependencyManager implements IDependencyManager {
         return Collections.unmodifiableCollection(getDependencyLoaders().get(dependencyName));
     }
 
+    public Collection<IDependencyLoader> getAllDependencyLoaders() {
+        return Collections.unmodifiableCollection(
+            getDependencyLoaders().values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
+    }
+
     protected void addDependencyLoaders(Collection<IDependencyLoader> dependencyLoadersToAdd) {
         if (dependencyLoadersToAdd != null) {
             synchronized (dependencyLoadersFlag) {

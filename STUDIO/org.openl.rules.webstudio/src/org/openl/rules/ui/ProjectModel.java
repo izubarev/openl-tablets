@@ -923,18 +923,14 @@ public class ProjectModel {
     }
 
     private void addAllSyntaxNodes() {
-        for (Collection<IDependencyLoader> collectionDependencyLoaders : webStudioWorkspaceDependencyManager
-                .getDependencyLoaders()
-                .values()) {
-            for (IDependencyLoader dl : collectionDependencyLoaders) {
-                CompiledDependency compiledDependency = dl.getRefToCompiledDependency();
-                if (compiledDependency != null) {
-                    XlsMetaInfo metaInfo = (XlsMetaInfo) compiledDependency.getCompiledOpenClass()
-                            .getOpenClassWithErrors()
-                            .getMetaInfo();
-                    if (metaInfo != null) {
-                        allXlsModuleSyntaxNodes.add(metaInfo.getXlsModuleNode());
-                    }
+        for (IDependencyLoader dl : webStudioWorkspaceDependencyManager.getAllDependencyLoaders()) {
+            CompiledDependency compiledDependency = dl.getRefToCompiledDependency();
+            if (compiledDependency != null) {
+                XlsMetaInfo metaInfo = (XlsMetaInfo) compiledDependency.getCompiledOpenClass()
+                    .getOpenClassWithErrors()
+                    .getMetaInfo();
+                if (metaInfo != null) {
+                    allXlsModuleSyntaxNodes.add(metaInfo.getXlsModuleNode());
                 }
             }
         }
