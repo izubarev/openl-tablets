@@ -67,39 +67,36 @@ public class WorkspaceCompileService {
                     ProjectDescriptor projectDescriptor = queue.poll();
                     for (Module module : projectDescriptor.getModules()) {
                         Collection<IDependencyLoader> dependencyLoadersForModule = webStudioWorkspaceDependencyManager
-                            .getDependencyLoaders()
-                            .get(module.getName());
+                            .findDependencyLoadersByName(module.getName());
                         for (IDependencyLoader dependencyLoader : dependencyLoadersForModule) {
-                                CompiledDependency compiledDependency = dependencyLoader.getRefToCompiledDependency();
-                                if (compiledDependency != null) {
-                                    for (OpenLMessage message : compiledDependency.getCompiledOpenClass()
-                                        .getMessages()) {
-                                        switch (message.getSeverity()) {
-                                            case WARN:
-                                                warningsCount++;
-                                                break;
-                                            case ERROR:
-                                                errorsCount++;
-                                                break;
-                                        }
-                                        MessageDescription messageDescription = getMessageDescription(message, model);
-                                        newMessages.add(messageDescription);
+                            CompiledDependency compiledDependency = dependencyLoader.getRefToCompiledDependency();
+                            if (compiledDependency != null) {
+                                for (OpenLMessage message : compiledDependency.getCompiledOpenClass().getMessages()) {
+                                    switch (message.getSeverity()) {
+                                        case WARN:
+                                            warningsCount++;
+                                            break;
+                                        case ERROR:
+                                            errorsCount++;
+                                            break;
                                     }
-                                    compiledCount++;
+                                    MessageDescription messageDescription = getMessageDescription(message, model);
+                                    newMessages.add(messageDescription);
                                 }
+                                compiledCount++;
+                            }
                             modulesCount++;
                         }
                     }
                     if (projectDescriptor.getDependencies() != null) {
                         for (ProjectDependencyDescriptor pd : projectDescriptor.getDependencies()) {
                             String projectDependencyName = ProjectExternalDependenciesHelper
-                                    .buildDependencyNameForProject(pd.getName());
+                                .buildDependencyNameForProject(pd.getName());
                             Collection<IDependencyLoader> dependencyLoadersForProject = webStudioWorkspaceDependencyManager
-                                    .getDependencyLoaders()
-                                    .get(projectDependencyName);
+                                .findDependencyLoadersByName(projectDependencyName);
                             if (dependencyLoadersForProject != null) {
                                 for (IDependencyLoader dependencyLoader : dependencyLoadersForProject) {
-                                    if (dependencyLoader != null && dependencyLoader.isProject()) {
+                                    if (dependencyLoader != null && dependencyLoader.isProjectLoader()) {
                                         queue.add(dependencyLoader.getProject());
                                         break;
                                     }
@@ -143,7 +140,9 @@ public class WorkspaceCompileService {
 
             for (IOpenMethod test : allTests) {
                 TableSyntaxNode syntaxNode = (TableSyntaxNode) test.getInfo().getSyntaxNode();
-                tableDescriptions.add(new TableBean.TableDescription(webStudio.url("table", syntaxNode.getUri()), syntaxNode.getId(), getTestName(test)));
+                tableDescriptions.add(new TableBean.TableDescription(webStudio.url("table", syntaxNode.getUri()),
+                    syntaxNode.getId(),
+                    getTestName(test)));
             }
             tableDescriptions.sort(Comparator.comparing(TableBean.TableDescription::getName));
 
@@ -153,13 +152,13 @@ public class WorkspaceCompileService {
         return Response.ok(tableTestsInfo).build();
     }
 
-    private boolean isModuleCompiled(ProjectModel model, WebStudio webStudio){
+    private boolean isModuleCompiled(ProjectModel model, WebStudio webStudio) {
         String currentProjectDependencyName = ProjectExternalDependenciesHelper
-                .buildDependencyNameForProject(model.getModuleInfo().getProject().getName());
-        WebStudioWorkspaceRelatedDependencyManager webStudioWorkspaceDependencyManager = webStudio.getModel().getWebStudioWorkspaceDependencyManager();
+            .buildDependencyNameForProject(model.getModuleInfo().getProject().getName());
+        WebStudioWorkspaceRelatedDependencyManager webStudioWorkspaceDependencyManager = webStudio.getModel()
+            .getWebStudioWorkspaceDependencyManager();
         Collection<IDependencyLoader> dependencyLoadersForModule = webStudioWorkspaceDependencyManager
-                .getDependencyLoaders()
-                .get(currentProjectDependencyName);
+            .findDependencyLoadersByName(currentProjectDependencyName);
         for (IDependencyLoader dependencyLoader : dependencyLoadersForModule) {
             if (dependencyLoader.getRefToCompiledDependency() != null) {
                 return true;

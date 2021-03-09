@@ -7,21 +7,11 @@ import static org.openl.rules.security.Privileges.EDIT_TABLES;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.tuple.Pair;
-import org.openl.rules.project.validation.openapi.OpenApiProjectValidator;
 import org.openl.CompiledOpenClass;
 import org.openl.OpenClassUtil;
 import org.openl.base.INamedThing;
@@ -51,6 +41,7 @@ import org.openl.rules.project.model.Module;
 import org.openl.rules.project.model.PathEntry;
 import org.openl.rules.project.model.ProjectDescriptor;
 import org.openl.rules.project.resolving.ProjectResolver;
+import org.openl.rules.project.validation.openapi.OpenApiProjectValidator;
 import org.openl.rules.rest.ProjectHistoryService;
 import org.openl.rules.source.impl.VirtualSourceCodeModule;
 import org.openl.rules.table.CompositeGrid;
@@ -503,9 +494,7 @@ public class ProjectModel {
     }
 
     private XlsModuleSyntaxNode findXlsModuleSyntaxNode(CompiledOpenClass compiledOpenClass) {
-        XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass
-                .getOpenClassWithErrors()
-                .getMetaInfo();
+        XlsMetaInfo xmi = (XlsMetaInfo) compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
         return xmi == null ? null : xmi.getXlsModuleNode();
     }
 
@@ -976,9 +965,9 @@ public class ProjectModel {
             WorkbookLoaders.setCurrentFactory(factory);
 
             CompiledOpenClass thisModuleCompiledOpenClass = webStudioWorkspaceDependencyManager
-                    .loadDependency(new Dependency(DependencyType.MODULE,
-                            new IdentifierNode(DependencyType.MODULE.name(), null, moduleInfo.getName(), null)))
-                    .getCompiledOpenClass();
+                .loadDependency(new Dependency(DependencyType.MODULE,
+                    new IdentifierNode(DependencyType.MODULE.name(), null, moduleInfo.getName(), null)))
+                .getCompiledOpenClass();
 
             // Find all dependent XlsModuleSyntaxNode-s
             XlsMetaInfo metaInfo = (XlsMetaInfo) thisModuleCompiledOpenClass.getOpenClassWithErrors().getMetaInfo();
@@ -1016,7 +1005,8 @@ public class ProjectModel {
                             this.compiledOpenClass = this.validate(new SimpleMultiModuleInstantiationStrategy(modules,
                                 webStudioWorkspaceDependencyManager,
                                 false));
-                            XlsMetaInfo metaInfo1 = (XlsMetaInfo) this.compiledOpenClass.getOpenClassWithErrors().getMetaInfo();
+                            XlsMetaInfo metaInfo1 = (XlsMetaInfo) this.compiledOpenClass.getOpenClassWithErrors()
+                                .getMetaInfo();
                             allXlsModuleSyntaxNodes.add(metaInfo1.getXlsModuleNode());
                         } catch (RulesInstantiationException ignored) {
                         }
@@ -1053,20 +1043,34 @@ public class ProjectModel {
     private void prepareWebstudioWorkspaceDependencyManager() {
         if (webStudioWorkspaceDependencyManager == null) {
             webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                .getDependencyManager(this.moduleInfo);
+                .buildDependencyManager(this.moduleInfo.getProject());
         } else {
-            boolean found = false;
+            List<ProjectDescriptor> projectsInWorkspace = webStudioWorkspaceDependencyManagerFactory
+                .resolveWorkspace(this.moduleInfo.getProject());
+            Set<String> projectNamesInWorkspace = projectsInWorkspace.stream()
+                .map(ProjectDescriptor::getName)
+                .collect(Collectors.toSet());
+            boolean foundOpenedProject = false;
+            boolean someProjectsCanBeReused = false;
             for (ProjectDescriptor projectDescriptor : webStudioWorkspaceDependencyManager.getProjectDescriptors()) {
                 if (this.moduleInfo.getProject().getName().equals(projectDescriptor.getName())) {
-                    found = true;
-                    break;
+                    foundOpenedProject = true;
+                }
+                if (projectNamesInWorkspace.contains(projectDescriptor.getName())) {
+                    someProjectsCanBeReused = true;
                 }
             }
-            if (!found) {
-                webStudioWorkspaceDependencyManager.shutdown();
-                webStudioWorkspaceDependencyManager.resetAll();
-                webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
-                    .getDependencyManager(this.moduleInfo);
+            if (!foundOpenedProject) {
+                if (!someProjectsCanBeReused) {
+                    webStudioWorkspaceDependencyManager.shutdown();
+                    webStudioWorkspaceDependencyManager.resetAll();
+                    webStudioWorkspaceDependencyManager = webStudioWorkspaceDependencyManagerFactory
+                        .buildDependencyManager(this.moduleInfo.getProject());
+                } else {
+                    // If loaded projects are a part of the new opened project, then we can reuse dependency manager
+                    webStudioWorkspaceDependencyManager.expand(
+                        webStudioWorkspaceDependencyManagerFactory.resolveWorkspace(this.moduleInfo.getProject()));
+                }
             }
         }
     }
