@@ -156,13 +156,15 @@ public class WorkspaceCompileService {
             IOpenLTable table = model.getTableById(tableId);
             IOpenMethod[] allTests = model.getTestAndRunMethods(table.getUri());
 
-            for (IOpenMethod test : allTests) {
-                TableSyntaxNode syntaxNode = (TableSyntaxNode) test.getInfo().getSyntaxNode();
-                tableDescriptions.add(new TableBean.TableDescription(webStudio.url("table", syntaxNode.getUri()),
-                    syntaxNode.getId(),
-                    getTestName(test)));
+            if (allTests != null) {
+                for (IOpenMethod test : allTests) {
+                    TableSyntaxNode syntaxNode = (TableSyntaxNode) test.getInfo().getSyntaxNode();
+                    tableDescriptions.add(new TableBean.TableDescription(webStudio.url("table", syntaxNode.getUri()),
+                            syntaxNode.getId(),
+                            getTestName(test)));
+                }
+                tableDescriptions.sort(Comparator.comparing(TableBean.TableDescription::getName));
             }
-            tableDescriptions.sort(Comparator.comparing(TableBean.TableDescription::getName));
 
             tableTestsInfo.put("allTests", tableDescriptions);
             tableTestsInfo.put("compiled", isModuleCompiled(model, webStudio));
