@@ -55,7 +55,7 @@
                             $jq('#warningsInfoPanel').toggle(data.warningsCount !== 0);
                             $jq('#warningsCount').text(data.warningsCount);
 
-                            if (data.messageIndex !== -1 && data.messageId !== -1) {
+                            if (data.messageIndex !== -1 || data.messageId !== -1) {
                                 messageIndex = data.messageIndex;
                                 messageId = data.messageId;
                             }
@@ -80,6 +80,8 @@
                                 var errorsDiv = document.createElement("DIV");
 
                                 if (data.dataType === 'new') {
+                                    while(warningsPanel.firstChild) warningsPanel.removeChild(warningsPanel.firstChild);
+                                    while(errorsPanel.firstChild) errorsPanel.removeChild(errorsPanel.firstChild);
                                     warningsDiv.innerHTML = warningsHtml;
                                     errorsDiv.innerHTML = errorsHtml;
                                 } else {
@@ -90,12 +92,11 @@
                                 warningsPanel.appendChild(warningsDiv);
                                 errorsPanel.appendChild(errorsDiv);
                             }
+                            setTimeout(function () {$jq('#progressInfoPanel').trigger('refresh')}, 1000);
                         });
                 });
 
-
                 $jq('#progressInfoPanel').trigger('refresh');
-                setInterval(function () {$jq('#progressInfoPanel').trigger('refresh')}, 1000);//time in milliseconds
 
                 //]]>
             </script>
