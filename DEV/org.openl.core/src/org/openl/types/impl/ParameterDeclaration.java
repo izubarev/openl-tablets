@@ -14,10 +14,21 @@ public class ParameterDeclaration implements IParameterDeclaration {
 
     private final IOpenClass type;
     private final String name;
+    private final boolean complete;
 
     public ParameterDeclaration(IOpenClass type, String name) {
+        this(type, name, true);
+    }
+
+    public ParameterDeclaration(IOpenClass type, String name, boolean complete) {
         this.type = type;
         this.name = name;
+        this.complete = complete;
+    }
+
+    @Override
+    public boolean isComplete() {
+        return complete;
     }
 
     @Override

@@ -944,7 +944,7 @@ public final class DecisionTableHelper {
                         fuzzyContext,
                         dtHeaders,
                         compoundReturnType,
-                        isCollect ? DecisionTableColumnHeaders.COLLECT_RETURN.getHeaderKey() + retNum++
+                        isCollect ? DecisionTableColumnHeaders.COLLECT_RETURN.getHeaderKey() + cRetNum++
                                   : DecisionTableColumnHeaders.RETURN.getHeaderKey() + retNum++,
                         bindingContext);
                     skipFuzzyReturns = true;

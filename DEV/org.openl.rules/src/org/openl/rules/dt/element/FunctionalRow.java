@@ -454,7 +454,7 @@ public abstract class FunctionalRow implements IDecisionRow {
                     IOpenClass type = method.getBodyType();
 
                     if (type != NullOpenClass.the) {
-                        return new ParameterDeclaration(type, makeParamName());
+                        return new ParameterDeclaration(type, makeParamName(), false);
                     }
                     String message = "Cannot recognize type of local parameter for expression";
                     BindHelper.processError(message, methodSource, bindingContext);
@@ -466,7 +466,7 @@ public abstract class FunctionalRow implements IDecisionRow {
                 String errMsg = "Parameter cell format: <type> <name>";
                 BindHelper.processError(errMsg, paramSource, bindingContext);
             }
-            return new ParameterDeclaration(NullOpenClass.the, makeParamName());
+            return new ParameterDeclaration(NullOpenClass.the, makeParamName(), false);
         }
 
         String[] parts = code.split("\\s+");
@@ -480,8 +480,11 @@ public abstract class FunctionalRow implements IDecisionRow {
         String typeCode = parts[0];
         IOpenClass type = RuleRowHelper.getType(typeCode, paramSource, bindingContext);
 
-        String paramName = parts.length == 2 ? parts[1] : makeParamName();
-        return new ParameterDeclaration(type, paramName);
+        if (parts.length == 2) {
+            return new ParameterDeclaration(type, parts[1]);
+        } else {
+            return new ParameterDeclaration(type, makeParamName(), false);
+        }
     }
 
     @Override
