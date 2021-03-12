@@ -9,13 +9,15 @@ import org.openl.types.IOpenClass;
 import org.openl.types.IOpenField;
 import org.openl.vm.IRuntimeEnv;
 
-public class ConditionOrActionDirectParameterField implements IOpenField {
+class ConditionOrActionDirectParameterField implements IOpenField {
 
     private final IDecisionRow decisionRow;
     private final int paramNum;
     private final DecisionTableDataType decisionTableDataType;
 
-    public ConditionOrActionDirectParameterField(IDecisionRow decisionRow, int paramNum, DecisionTableDataType decisionTableDataType) {
+    ConditionOrActionDirectParameterField(IDecisionRow decisionRow,
+            int paramNum,
+            DecisionTableDataType decisionTableDataType) {
         super();
         this.decisionTableDataType = Objects.requireNonNull(decisionTableDataType, "declaringClass cannot be null");
         this.decisionRow = Objects.requireNonNull(decisionRow, "decisionRow cannot be null");

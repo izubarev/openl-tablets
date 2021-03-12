@@ -17,6 +17,4 @@ public interface IParameterDeclaration extends INamedThing {
     IParameterDeclaration[] EMPTY = new IParameterDeclaration[0];
 
     IOpenClass getType();
-
-    boolean isComplete();
 }

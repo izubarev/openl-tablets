@@ -1,5 +1,6 @@
 package org.openl.rules.dt.element;
 
+import java.util.BitSet;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -50,7 +51,9 @@ public abstract class FunctionalRow implements IDecisionRow {
 
     protected IOpenClass ruleExecutionType;
 
-    private IParameterDeclaration[] params;
+    protected IParameterDeclaration[] params;
+    protected BitSet paramInitialized;
+    protected Set<String> paramsUniqueNames;
     protected IStorage<?>[] storage;
 
     private ILogicalTable decisionTable;
@@ -75,6 +78,9 @@ public abstract class FunctionalRow implements IDecisionRow {
         this.presentationTable = decisionTable
             .getSubtable(IDecisionTableConstants.PRESENTATION_COLUMN_INDEX, row, 1, 1);
         this.scale = scale;
+        this.params = new IParameterDeclaration[paramsTable.getHeight()];
+        this.paramInitialized = new BitSet(paramsTable.getHeight());
+        this.paramsUniqueNames = new HashSet<>();
     }
 
     @Override
@@ -90,10 +96,6 @@ public abstract class FunctionalRow implements IDecisionRow {
     @Override
     public IParameterDeclaration[] getParams() {
         return params;
-    }
-
-    protected void setParams(IParameterDeclaration[] params) {
-        this.params = params;
     }
 
     @Override
@@ -207,24 +209,17 @@ public abstract class FunctionalRow implements IDecisionRow {
             codeTable = null;
             presentationTable = null;
         }
-
     }
 
-    protected IParameterDeclaration[] getParams(IOpenClass declaringClass,
+    protected void prepareParams(IOpenClass declaringClass,
             IMethodSignature signature,
             IOpenClass methodType,
             IOpenSourceCodeModule methodSource,
             OpenL openl,
             IBindingContext bindingContext) throws Exception {
-
-        if (params == null) {
-
-            Set<String> paramNames = new HashSet<>();
-            int length = paramsTable.getHeight();
-
-            params = new IParameterDeclaration[length];
-
-            for (int i = 0; i < length; i++) {
+        int length = paramsTable.getHeight();
+        for (int i = 0; i < length; i++) {
+            if (!paramInitialized.get(i)) {
                 ILogicalTable paramTable = paramsTable.getRow(i);
                 IOpenSourceCodeModule source = new GridCellSourceCodeModule(paramTable.getSource(), bindingContext);
 
@@ -239,39 +234,64 @@ public abstract class FunctionalRow implements IDecisionRow {
 
                 if (parameterDeclaration != null) {
                     String paramName = parameterDeclaration.getName();
-
-                    if (!paramNames.add(paramName)) {
+                    if (!paramsUniqueNames.add(paramName)) {
                         BindHelper.processError("Duplicated parameter name: " + paramName, source, bindingContext);
                     }
 
                     params[i] = parameterDeclaration;
+                    paramInitialized.set(i);
                 }
             }
         }
+    }
 
-        return params;
+    public void prepareParams(IBindingContext bindingContext) {
+        for (int i = 0; i < paramsTable.getHeight(); i++) {
+            if (!paramInitialized.get(i)) {
+                ILogicalTable paramTable = paramsTable.getRow(i);
+                IOpenSourceCodeModule paramSource = new GridCellSourceCodeModule(paramTable.getSource(),
+                    bindingContext);
+                String code = paramSource.getCode();
+                if (!StringUtils.isBlank(code)) {
+                    String[] parts = code.split("\\s+");
+                    if (parts.length == 2) {
+                        String typeCode = parts[0];
+                        IOpenClass type = RuleRowHelper.getType(typeCode, paramSource, bindingContext);
+                        params[i] = new ParameterDeclaration(type, parts[1]);
+                        if (params[i] != null) {
+                            if (!paramsUniqueNames.add(params[i].getName())) {
+                                BindHelper.processError("Duplicated parameter name: " + params[i].getName(),
+                                    paramSource,
+                                    bindingContext);
+                            }
+                        }
+                        paramInitialized.set(i);
+                    }
+                }
+            }
+        }
     }
 
     private void prepareParamValues(CompositeMethod method, OpenlToolAdaptor ota, RuleRow ruleRow) throws Exception {
 
         int len = nValues();
 
-        IParameterDeclaration[] paramDecl = getParams(method.getDeclaringClass(),
+        prepareParams(method.getDeclaringClass(),
             method.getSignature(),
             method.getType(),
             method.getMethodBodyBoundNode().getSyntaxNode().getModule(),
             ota.getOpenl(),
             ota.getBindingContext());
 
-        boolean[] paramIndexed = getParamIndexed(paramDecl);
+        boolean[] paramIndexed = getParamIndexed(params);
 
-        IStorageBuilder<?>[] builders = makeStorageBuilders(len, paramDecl);
+        IStorageBuilder<?>[] builders = makeStorageBuilders(len, params);
 
         int actualStorageSize = scale.getActualSize(len);
 
         for (int i = 0; i < actualStorageSize; i++) {
             int ruleN = scale.getLogicalIndex(i);
-            loadParamsFromColumn(ota, ruleRow, paramDecl, paramIndexed, ruleN, builders);
+            loadParamsFromColumn(ota, ruleRow, params, paramIndexed, ruleN, builders);
         }
 
         storage = new IStorage<?>[builders.length];
@@ -387,12 +407,11 @@ public abstract class FunctionalRow implements IDecisionRow {
             null,
             openl,
             bindingContext);
-        IParameterDeclaration[] methodParams = getParams(null, signature, methodType, source, openl, bindingContext);
-        IMethodSignature newSignature = ((MethodSignature) signature).merge(methodParams);
+        prepareParams(null, signature, methodType, source, openl, bindingContext);
+        IMethodSignature newSignature = ((MethodSignature) signature).merge(params);
         OpenMethodHeader methodHeader = new OpenMethodHeader(null, methodType, newSignature, null);
 
         return OpenLManager.makeMethod(openl, source, methodHeader, bindingContext);
-
     }
 
     protected IOpenSourceCodeModule getExpressionSource(TableSyntaxNode tableSyntaxNode,
@@ -454,7 +473,7 @@ public abstract class FunctionalRow implements IDecisionRow {
                     IOpenClass type = method.getBodyType();
 
                     if (type != NullOpenClass.the) {
-                        return new ParameterDeclaration(type, makeParamName(), false);
+                        return new ParameterDeclaration(type, makeParamName());
                     }
                     String message = "Cannot recognize type of local parameter for expression";
                     BindHelper.processError(message, methodSource, bindingContext);
@@ -466,7 +485,7 @@ public abstract class FunctionalRow implements IDecisionRow {
                 String errMsg = "Parameter cell format: <type> <name>";
                 BindHelper.processError(errMsg, paramSource, bindingContext);
             }
-            return new ParameterDeclaration(NullOpenClass.the, makeParamName(), false);
+            return new ParameterDeclaration(NullOpenClass.the, makeParamName());
         }
 
         String[] parts = code.split("\\s+");
@@ -483,7 +502,7 @@ public abstract class FunctionalRow implements IDecisionRow {
         if (parts.length == 2) {
             return new ParameterDeclaration(type, parts[1]);
         } else {
-            return new ParameterDeclaration(type, makeParamName(), false);
+            return new ParameterDeclaration(type, makeParamName());
         }
     }
 

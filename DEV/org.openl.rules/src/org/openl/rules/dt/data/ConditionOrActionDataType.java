@@ -11,7 +11,9 @@ class ConditionOrActionDataType extends ComponentOpenClass {
         super(conditionOrAction.getName() + "Type", openl);
         IParameterDeclaration[] pdd = conditionOrAction.getParams();
         for (int i = 0; i < pdd.length; i++) {
-            addField(new ConditionOrActionParameterField(conditionOrAction, i));
+            if (pdd[i] != null) {
+                addField(new ConditionOrActionParameterField(conditionOrAction, i));
+            }
         }
     }
 
