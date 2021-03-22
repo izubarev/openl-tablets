@@ -2,11 +2,14 @@ package org.openl.rules.table.properties;
 
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 
 import org.openl.rules.lang.xls.syntax.TableSyntaxNode;
@@ -15,14 +18,40 @@ import org.openl.rules.table.properties.def.TablePropertyDefinition;
 import org.openl.rules.table.properties.def.TablePropertyDefinitionUtils;
 import org.openl.rules.table.properties.inherit.InheritanceLevel;
 import org.openl.rules.table.properties.inherit.PropertiesChecker;
-import org.openl.types.IOpenClass;
+import org.openl.types.IDynamicObject;
 import org.openl.types.impl.DynamicObject;
-import org.openl.types.java.JavaOpenClass;
 import org.openl.util.ArrayTool;
 import org.openl.util.EnumUtils;
 import org.openl.util.StringUtils;
+import org.openl.util.print.NicePrinter;
+import org.openl.util.print.NicePrinterAdaptor;
 
-public class TableProperties extends DynamicObject implements ITableProperties {
+public class TableProperties implements ITableProperties {
+
+    // TODO maybe move to special class
+    public static final List<PropertyPreprocessor<Object>> defaultTablePropertiesPreprocessors = Arrays.asList(
+        PropertyPreprocessor.of((propertyName, property) -> Objects.isNull(property), (propertyName, property) -> null),
+        PropertyPreprocessor.of((propertyName, property) -> property.getClass().isArray(), (propertyName, property) -> {
+            Object[] value1 = ((Object[]) property).clone();
+            Arrays.sort(value1);
+            return value1;
+        }),
+        PropertyPreprocessor.of((propertyName, property) -> property instanceof Date,
+            (propertyName, property) -> ((Date) property).clone(),
+            PropertyPreprocessor.of(
+                (propertyName,
+                        property) -> "expirationDate".equals(propertyName) || "endRequestDate".equals(propertyName),
+                (propertyName, property) -> {
+                    Calendar calendar = Calendar.getInstance();
+                    calendar.setTime((Date) property);
+                    calendar.set(Calendar.HOUR_OF_DAY, 23);
+                    calendar.set(Calendar.MINUTE, 59);
+                    calendar.set(Calendar.SECOND, 59);
+                    calendar.set(Calendar.MILLISECOND, 999);
+                    return calendar.getTime();
+                })));
+
+    private final HashMap<String, Object> fieldValues = new HashMap<>();
 
     private String currentTableType;
     /**
@@ -68,16 +97,6 @@ public class TableProperties extends DynamicObject implements ITableProperties {
             }
         }
         return downLevelProperties;
-    }
-
-    @Override
-    public IOpenClass getType() {
-        return JavaOpenClass.getOpenClass(getClass());
-    }
-
-    @Override
-    public void setType(IOpenClass type) {
-        throw new UnsupportedOperationException();
     }
 
     // <<< INSERT >>>
@@ -678,7 +697,7 @@ public class TableProperties extends DynamicObject implements ITableProperties {
         if (allProperties != null) {
             return allProperties;
         }
-        Map<String, Object> tableAndCategoryProp = mergeLevelProperties(super.getFieldValues(), categoryProperties);
+        Map<String, Object> tableAndCategoryProp = mergeLevelProperties(getFieldValues(), categoryProperties);
         Map<String, Object> tableAndCategoryAndModuleProp = mergeLevelProperties(tableAndCategoryProp,
             moduleProperties);
         Map<String, Object> tableAndCategoryAndModuleAndGlobalProp = mergeLevelProperties(tableAndCategoryAndModuleProp,
@@ -692,24 +711,8 @@ public class TableProperties extends DynamicObject implements ITableProperties {
         return allProperties;
     }
 
-    @Override
     public void setFieldValue(String name, Object value) {
-        super.setFieldValue(name, toPropertyValue(value));
-    }
-
-    private Object toPropertyValue(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value.getClass().isArray()) {
-            Object[] value1 = ((Object[]) value).clone();
-            Arrays.sort(value1);
-            return value1;
-        }
-        if (value instanceof Date) {
-            return ((Date) value).clone();
-        }
-        return value;
+        fieldValues.put(name, preprocess(name, value));
     }
 
     /**
@@ -717,7 +720,7 @@ public class TableProperties extends DynamicObject implements ITableProperties {
      */
     @Override
     public Map<String, Object> getTableProperties() {
-        return super.getFieldValues();
+        return getFieldValues();
     }
 
     /**
@@ -750,7 +753,7 @@ public class TableProperties extends DynamicObject implements ITableProperties {
         if (categoryProperties == null) {
             this.categoryProperties = Collections.emptyMap();
         } else {
-            this.categoryProperties = extractPropertiesMap(categoryProperties);
+            this.categoryProperties = preprocessProperties(categoryProperties);
         }
         reset();
     }
@@ -768,7 +771,7 @@ public class TableProperties extends DynamicObject implements ITableProperties {
         if (moduleProperties == null) {
             this.moduleProperties = Collections.emptyMap();
         } else {
-            this.moduleProperties = extractPropertiesMap(moduleProperties);
+            this.moduleProperties = preprocessProperties(moduleProperties);
         }
         reset();
     }
@@ -778,7 +781,7 @@ public class TableProperties extends DynamicObject implements ITableProperties {
         if (globalProperties == null) {
             this.globalProperties = Collections.emptyMap();
         } else {
-            this.globalProperties = extractPropertiesMap(globalProperties);
+            this.globalProperties = preprocessProperties(globalProperties);
         }
         reset();
     }
@@ -838,15 +841,23 @@ public class TableProperties extends DynamicObject implements ITableProperties {
         if (externalProperties == null) {
             this.externalModuleProperties = Collections.emptyMap();
         } else {
-            this.externalModuleProperties = extractPropertiesMap(externalProperties);
+            this.externalModuleProperties = preprocessProperties(externalProperties);
         }
         reset();
     }
 
-    private Map<String, Object> extractPropertiesMap(Map<String, Object> externalProperties) {
+    protected Object preprocess(String name, Object value) {
+        return defaultTablePropertiesPreprocessors.stream()
+            .filter(p -> p.check(name, value))
+            .findFirst()
+            .map(p -> p.apply(name, value))
+            .orElse(value);
+    }
+
+    private Map<String, Object> preprocessProperties(Map<String, Object> properties) {
         Map<String, Object> tmp = new HashMap<>();
-        for (Entry<String, Object> entry : externalProperties.entrySet()) {
-            tmp.put(entry.getKey(), toPropertyValue(entry.getValue()));
+        for (Entry<String, Object> entry : properties.entrySet()) {
+            tmp.put(entry.getKey(), preprocess(entry.getKey(), entry.getValue()));
         }
         return Collections.unmodifiableMap(tmp);
     }
@@ -863,6 +874,58 @@ public class TableProperties extends DynamicObject implements ITableProperties {
             }
         }
         return true;
+    }
+
+    /*
+     * Added to support deployment of OpenL project as web services
+     */
+
+    public static NicePrinterAdaptor getNicePrinterAdaptor() {
+        return new DONIcePrinterAdaptor();
+    }
+
+    public boolean containsField(String name) {
+        return fieldValues.containsKey(name);
+    }
+
+    public Object getFieldValue(String name) {
+        return fieldValues.get(name);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getFieldValues() {
+        return (HashMap<String, Object>) fieldValues.clone();
+    }
+
+    @Override
+    public String toString() {
+        NicePrinter printer = new NicePrinter();
+        printer.print(this, getNicePrinterAdaptor());
+        return printer.getBuffer().toString();
+    }
+
+    private static class DONIcePrinterAdaptor extends NicePrinterAdaptor {
+
+        @Override
+        protected String getTypeName(Object obj) {
+            if (obj instanceof DynamicObject) {
+                return ((DynamicObject) obj).getType().getName();
+            }
+            return super.getTypeName(obj);
+        }
+
+        @Override
+        public void printObject(Object obj, int newID, NicePrinter printer) {
+            if (obj instanceof IDynamicObject) {
+                IDynamicObject dobj = (IDynamicObject) obj;
+                printReference(dobj, newID, printer);
+                // printer.getBuffer().append(shortTypeName(dobj.getType().getName()));
+                printMap(dobj.getFieldValues(), null, printer);
+                return;
+            }
+
+            super.printObject(obj, newID, printer);
+        }
     }
 
 }
