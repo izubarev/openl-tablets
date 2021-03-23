@@ -325,23 +325,39 @@ public final class DecisionTableHelper {
     }
 
     private static void resolveConflictsInDeclaredDtHeaders(DecisionTable decisionTable, List<List<DTHeader>> fits) {
-        Set<String> usedIdentifierNamesByMethodSignature = new HashSet<>();
+        Set<String> usedMethodSignatureIdentifiers = new HashSet<>();
         for (int i = 0; i < decisionTable.getSignature().getNumberOfParameters(); i++) {
-            usedIdentifierNamesByMethodSignature.add(toLowerCase(decisionTable.getSignature().getParameterName(i)));
+            usedMethodSignatureIdentifiers.add(toLowerCase(decisionTable.getSignature().getParameterName(i)));
         }
         for (List<DTHeader> dtHeaders : fits) {
             Map<String, String> renamedParameters = new HashMap<>();
+            Map<String, Integer> usedAllParameterIdentifiers = new HashMap<>();
+            Set<String> externalParameters = new HashSet<>();
             for (DTHeader dtHeader : dtHeaders) {
                 if (dtHeader instanceof DeclaredDTHeader) {
                     DeclaredDTHeader declaredDTHeader = (DeclaredDTHeader) dtHeader;
-                    Map<String, Integer> usedIdentifierNamesForParameters = new HashMap<>();
                     for (int i = 0; i < declaredDTHeader.getColumnParameters().length; i++) {
                         for (int j = 0; j < declaredDTHeader.getColumnParameters()[i].length; j++) {
                             IParameterDeclaration parameterDeclaration = declaredDTHeader.getColumnParameters()[i][j];
                             if (parameterDeclaration != null) {
-                                usedIdentifierNamesForParameters.merge(toLowerCase(parameterDeclaration.getName()),
-                                        1,
-                                        Integer::sum);
+                                usedAllParameterIdentifiers.merge(parameterDeclaration.getName(), 1, Integer::sum);
+                            }
+                        }
+                    }
+                    externalParameters.addAll(declaredDTHeader.getMatchedDefinition()
+                            .getDtColumnsDefinition()
+                            .getExternalParameters());
+                }
+            }
+            for (DTHeader dtHeader : dtHeaders) {
+                if (dtHeader instanceof DeclaredDTHeader) {
+                    DeclaredDTHeader declaredDTHeader = (DeclaredDTHeader) dtHeader;
+                    Set<String> usedLocalParameterIdentifiers = new HashSet<>();
+                    for (int i = 0; i < declaredDTHeader.getColumnParameters().length; i++) {
+                        for (int j = 0; j < declaredDTHeader.getColumnParameters()[i].length; j++) {
+                            IParameterDeclaration parameterDeclaration = declaredDTHeader.getColumnParameters()[i][j];
+                            if (parameterDeclaration != null) {
+                                usedLocalParameterIdentifiers.add(toLowerCase(parameterDeclaration.getName()));
                             }
                         }
                     }
@@ -350,28 +366,29 @@ public final class DecisionTableHelper {
                             IParameterDeclaration parameterDeclaration = declaredDTHeader.getColumnParameters()[i][j];
                             if (parameterDeclaration != null) {
                                 String param = parameterDeclaration.getName();
-                                if (usedIdentifierNamesByMethodSignature.contains(toLowerCase(param)) || usedIdentifierNamesForParameters
-                                        .get(toLowerCase(param)) > 1) {
-                                    String lowerCasedParam = toLowerCase(param);
-                                    Integer v = usedIdentifierNamesForParameters.get(lowerCasedParam);
+                                String lowerCasedParam = toLowerCase(param);
+                                if (usedMethodSignatureIdentifiers.contains(lowerCasedParam) || usedAllParameterIdentifiers
+                                        .get(param) > 1 && externalParameters.contains(param)) {
+                                    Integer v = usedAllParameterIdentifiers.get(param);
                                     if (v != null) {
                                         if (v > 1) {
-                                            usedIdentifierNamesForParameters.put(lowerCasedParam, v - 1);
+                                            usedAllParameterIdentifiers.put(param, v - 1);
                                         } else {
-                                            usedIdentifierNamesForParameters.remove(lowerCasedParam);
+                                            usedAllParameterIdentifiers.remove(param);
                                         }
                                     }
                                     String newParamName = "_" + param;
                                     String newParamNameLowerCased = toLowerCase(newParamName);
                                     int k = 1;
-                                    while (usedIdentifierNamesByMethodSignature.contains(newParamName) || usedIdentifierNamesForParameters
-                                            .containsKey(newParamNameLowerCased)) {
+                                    while (usedMethodSignatureIdentifiers.contains(newParamNameLowerCased) || usedAllParameterIdentifiers
+                                            .containsKey(newParamName) || usedLocalParameterIdentifiers
+                                            .contains(newParamNameLowerCased)) {
                                         newParamName = "_" + parameterDeclaration.getName() + "_" + k;
                                         newParamNameLowerCased = toLowerCase(newParamName);
                                         k++;
                                     }
                                     param = newParamName;
-                                    usedIdentifierNamesForParameters.put(newParamNameLowerCased, 1);
+                                    usedAllParameterIdentifiers.put(newParamName, 1);
                                 }
                                 if (!StringUtils.equalsIgnoreCase(parameterDeclaration.getName(), param)) {
                                     declaredDTHeader.getMatchedDefinition()
