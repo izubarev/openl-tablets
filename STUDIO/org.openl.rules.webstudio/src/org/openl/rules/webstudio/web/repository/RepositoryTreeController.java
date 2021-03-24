@@ -574,6 +574,10 @@ public class RepositoryTreeController {
                     "Specified name is not a valid Deploy Configuration name. " + NameChecker.BAD_NAME_MSG);
                 return null;
             }
+            if (NameChecker.isReservedName(projectName)) {
+                WebStudioUtils.addErrorMessage("Specified deploy configuration name is a reserved word.");
+                return null;
+            }
             if (userWorkspace.hasDDProject(projectName)) {
                 WebStudioUtils.addErrorMessage(
                     "Cannot create configuration because configuration with such name already exists.");
@@ -699,6 +703,8 @@ public class RepositoryTreeController {
                 msg = "Project name must not be empty.";
             } else if (!NameChecker.checkName(projectName)) {
                 msg = "Specified name is not a valid project name." + " " + NameChecker.BAD_NAME_MSG;
+            }else if (NameChecker.isReservedName(projectName)) {
+                msg = "Specified project name is a reserved word.";
             } else if (userWorkspace.getDesignTimeRepository().hasProject(repositoryId, projectName)) {
                 msg = "Cannot create project because project with such name already exists.";
             } else {
@@ -1069,9 +1075,6 @@ public class RepositoryTreeController {
     }
 
     public String unlockProject() {
-        String repositoryId = WebStudioUtils.getRequestParameter("repositoryId");
-        String projectName = WebStudioUtils.getRequestParameter("projectName");
-
         try {
             RulesProject project = userWorkspace.getProject(repositoryId, projectName);
             if (project == null) {
@@ -1082,6 +1085,8 @@ public class RepositoryTreeController {
             File workspacesRoot = userWorkspace.getLocalWorkspace().getLocation().getParentFile();
             closeProjectForAllUsers(workspacesRoot, project);
             resetStudioModel();
+
+            WebStudioUtils.addInfoMessage("Project was unlocked successfully.");
         } catch (Exception e) {
             log.error("Cannot unlock rules project '{}'.", projectName, e);
             WebStudioUtils.addErrorMessage("Failed to unlock rules project.", e.getMessage());
@@ -1150,18 +1155,18 @@ public class RepositoryTreeController {
     }
 
     public String unlockDeploymentConfiguration() {
-        String deploymentProjectName = WebStudioUtils.getRequestParameter("deploymentProjectName");
-
         try {
-            ADeploymentProject deploymentProject = userWorkspace.getDDProject(deploymentProjectName);
+            ADeploymentProject deploymentProject = userWorkspace.getDDProject(projectName);
             if (deploymentProject == null) {
                 // It was deleted by other user
                 return null;
             }
             deploymentProject.unlock();
             resetStudioModel();
+
+            WebStudioUtils.addInfoMessage("Deploy configuration was unlocked successfully.");
         } catch (Exception e) {
-            log.error("Cannot unlock deployment project '{}'.", deploymentProjectName, e);
+            log.error("Cannot unlock deployment project '{}'.", projectName, e);
             WebStudioUtils.addErrorMessage("Failed to unlock deployment project.", e.getMessage());
         }
         return null;
@@ -1314,7 +1319,7 @@ public class RepositoryTreeController {
                 .getProjectByPath(repository.getId(), branch, selectedProject.getRealPath(), version);
             TreeNode selectedNode = repositoryTreeState.getSelectedNode();
             fileName = selectedNode.getName();
-            ArtefactPath selectedNodePath = selectedNode.getData().getArtefactPath().withoutFirstSegment();
+            ArtefactPath selectedNodePath = selectedNode.getInternalArtifactPath();
 
             is = ((AProjectResource) forExport.getArtefactByPath(selectedNodePath)).getContent();
             file = File.createTempFile("export-", "-file");
@@ -1388,7 +1393,7 @@ public class RepositoryTreeController {
                     .getProjectByPath(repositoryId, branch, selectedProject.getRealPath(), version);
 
                 TreeNode selectedNode = repositoryTreeState.getSelectedNode();
-                ArtefactPath selectedNodePath = selectedNode.getData().getArtefactPath().withoutFirstSegment();
+                ArtefactPath selectedNodePath = selectedNode.getInternalArtifactPath();
                 is = ((AProjectResource) forExport.getArtefactByPath(selectedNodePath)).getContent();
             } else {
                 TreeNode selectedNode = repositoryTreeState.getSelectedNode();
