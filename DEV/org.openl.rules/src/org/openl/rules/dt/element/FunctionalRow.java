@@ -105,11 +105,9 @@ public abstract class FunctionalRow implements IDecisionRow {
 
     @Override
     public IOpenSourceCodeModule getSourceCodeModule() {
-
-        if (method != null) {
+        if (method != null && method.getMethodBodyBoundNode() != null) {
             return method.getMethodBodyBoundNode().getSyntaxNode().getModule();
         }
-
         return null;
     }
 
@@ -164,24 +162,30 @@ public abstract class FunctionalRow implements IDecisionRow {
 
     @Override
     public String[] getParamPresentation() {
-
         int length = paramsTable.getHeight();
-
         String[] result = new String[length];
         int fromHeight = 0;
-
         for (int i = 0; i < result.length; i++) {
-
             int gridHeight = paramsTable.getRow(i).getSource().getHeight();
-
             IGridTable singleParamGridTable = presentationTable.getSource()
                 .getRows(fromHeight, fromHeight + gridHeight - 1);
             result[i] = singleParamGridTable.getCell(0, 0).getStringValue();
-
             fromHeight += gridHeight;
         }
-
         return result;
+    }
+
+    @Override
+    public boolean hasDeclaredParams() {
+        boolean res = false;
+        for (int i = 0; i < paramsTable.getHeight(); i++) {
+            ILogicalTable paramTable = paramsTable.getRow(i);
+            IOpenSourceCodeModule source = new GridCellSourceCodeModule(paramTable.getSource());
+            if (StringUtils.isNotBlank(source.getCode())) {
+                res = true;
+            }
+        }
+        return res;
     }
 
     @Override
@@ -273,15 +277,16 @@ public abstract class FunctionalRow implements IDecisionRow {
     }
 
     private void prepareParamValues(CompositeMethod method, OpenlToolAdaptor ota, RuleRow ruleRow) throws Exception {
-
         int len = nValues();
 
-        prepareParams(method.getDeclaringClass(),
-            method.getSignature(),
-            method.getType(),
-            method.getMethodBodyBoundNode().getSyntaxNode().getModule(),
-            ota.getOpenl(),
-            ota.getBindingContext());
+        if (method.getMethodBodyBoundNode() != null) {
+            prepareParams(method.getDeclaringClass(),
+                    method.getSignature(),
+                    method.getType(),
+                    method.getMethodBodyBoundNode().getSyntaxNode().getModule(),
+                    ota.getOpenl(),
+                    ota.getBindingContext());
+        }
 
         boolean[] paramIndexed = getParamIndexed(params);
 

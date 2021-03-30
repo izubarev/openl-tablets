@@ -185,9 +185,10 @@ public class Action extends FunctionalRow implements IAction {
 
         IParameterDeclaration[] params = getParams();
         CompositeMethod method = getMethod();
-        String code = method.getMethodBodyBoundNode().getSyntaxNode().getModule().getCode();
-
-        isSingleReturnParam = params.length == 1 && params[0].getName().equals(code);
+        if (method.getMethodBodyBoundNode() != null) {
+            String code = method.getMethodBodyBoundNode().getSyntaxNode().getModule().getCode();
+            isSingleReturnParam = params.length == 1 && params[0].getName().equals(code);
+        }
     }
 
     @Override
@@ -233,9 +234,14 @@ public class Action extends FunctionalRow implements IAction {
 
         if ((isReturnAction() || isCollectReturnAction() || isCollectReturnKeyAction()) && StringUtils
             .isEmpty(source.getCode())) {
+            if (hasDeclaredParams()) {
+                // trigger parameter compilation & initialization
+                super.prepareParams(declaringClass, signature, methodType, null, openl, bindingContext);
+                // generate return statement to return parameter
+                return new StringSourceCodeModule(params[0].getName(), source.getUri());
+            }
             return new StringSourceCodeModule(EXTRA_RET, source.getUri());
         }
-
         return source;
     }
 
@@ -243,7 +249,7 @@ public class Action extends FunctionalRow implements IAction {
     public void removeDebugInformation() {
         getMethod().removeDebugInformation();
         if (storage != null) {
-            for (IStorage st : storage) {
+            for (IStorage<?> st : storage) {
                 int rules = st.size();
                 for (int i = 0; i < rules; i++) {
                     Object paramValue = st.getValue(i);
