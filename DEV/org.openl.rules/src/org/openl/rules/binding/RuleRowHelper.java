@@ -209,7 +209,7 @@ public final class RuleRowHelper {
         Class<?> instanceClass = paramType.getInstanceClass();
         int nativeType = theValueCell.getNativeType();
         return ClassUtils.isAssignable(instanceClass, Date.class) && nativeType == IGrid.CELL_TYPE_STRING && isNumeric(
-                theValueCell.getStringValue());
+            theValueCell.getStringValue());
     }
 
     public static boolean isNumeric(final CharSequence cs) {
@@ -238,7 +238,7 @@ public final class RuleRowHelper {
             OpenlToolAdaptor openlAdapter,
             ICell theValueCell) {
         if (theValueCell.getNativeType() == IGrid.CELL_TYPE_NUMERIC || isCellNumericStringDate(theValueCell,
-                paramType)) {
+            paramType)) {
             try {
                 Object res = loadNativeValue(theValueCell, paramType);
 
@@ -257,9 +257,9 @@ public final class RuleRowHelper {
                 }
 
                 BindHelper.processError(message,
-                        t,
-                        new GridCellSourceCodeModule(table.getSource(), openlAdapter.getBindingContext()),
-                        openlAdapter.getBindingContext());
+                    t,
+                    new GridCellSourceCodeModule(table.getSource(), openlAdapter.getBindingContext()),
+                    openlAdapter.getBindingContext());
             }
         }
         return null;
@@ -272,14 +272,14 @@ public final class RuleRowHelper {
                 for (int j = 0; j < table.getWidth(); j++) {
                     if (!(i == 0 && j == 0)) {
                         ICell cell = table.getCell(j, i);
-                        if ((theCell.getAbsoluteRegion().getTop() != cell.getAbsoluteRegion()
-                                .getTop() || theCell.getAbsoluteRegion().getLeft() != cell.getAbsoluteRegion()
-                                .getLeft()) && cell.getStringValue() != null) {
+                        if ((theCell.getAbsoluteRegion().getTop() != cell.getAbsoluteRegion().getTop() || theCell
+                            .getAbsoluteRegion()
+                            .getLeft() != cell.getAbsoluteRegion().getLeft()) && cell.getStringValue() != null) {
                             if (!cell.getStringValue().startsWith(COMMENTARY)) {
                                 BindHelper.processError(
-                                        "Table structure is wrong. More than one cell with data found where only one cell is expected.",
-                                        new GridCellSourceCodeModule(table.getSource(), bindingContext),
-                                        bindingContext);
+                                    "Table structure is wrong. More than one cell with data found where only one cell is expected.",
+                                    new GridCellSourceCodeModule(table.getSource(), bindingContext),
+                                    bindingContext);
                                 return;
                             }
                         }
@@ -298,21 +298,20 @@ public final class RuleRowHelper {
             }
             if (cell.getObjectValue() instanceof Date) {
                 IObjectToDataConvertor objectConverter = ObjectToDataConvertorFactory.getConvertor(expectedType,
-                        Date.class);
-                return objectConverter != ObjectToDataConvertorFactory.NO_Convertor ?
-                       objectConverter.convert(cell.getNativeDate()) :
-                       null;
+                    Date.class);
+                return objectConverter != ObjectToDataConvertorFactory.NO_Convertor ? objectConverter
+                    .convert(cell.getNativeDate()) : null;
             }
 
             if (ClassUtils.isAssignable(expectedType, BigDecimal.class) || ClassUtils.isAssignable(expectedType,
-                    BigDecimalValue.class)) {
+                BigDecimalValue.class)) {
                 // Convert String -> BigDecimal instead of double ->BigDecimal,
                 // otherwise we lose in precision (part of EPBDS-5879)
                 res = String2DataConvertorFactory.parse(expectedType, cell.getStringValue(), null);
             } else {
                 double value = cell.getNativeNumber();
                 IObjectToDataConvertor objectConverter = ObjectToDataConvertorFactory.getConvertor(expectedType,
-                        double.class);
+                    double.class);
                 if (objectConverter != ObjectToDataConvertorFactory.NO_Convertor) {
                     res = objectConverter.convert(value);
                 } else {
@@ -339,13 +338,13 @@ public final class RuleRowHelper {
     }
 
     public static SimpleNodeUsage createConstantNodeUsage(ConstantOpenField constantOpenField, int start, int end) {
-        String description = MethodUtil.printType(constantOpenField.getType()) + " " + constantOpenField.getName() + " = " + constantOpenField
-                .getValueAsString();
+        String description = MethodUtil.printType(constantOpenField.getType()) + " " + constantOpenField
+            .getName() + " = " + constantOpenField.getValueAsString();
         return new SimpleNodeUsage(start,
-                end,
-                description,
-                constantOpenField.getMemberMetaInfo().getSourceUrl(),
-                NodeType.OTHER);
+            end,
+            description,
+            constantOpenField.getMemberMetaInfo().getSourceUrl(),
+            NodeType.OTHER);
     }
 
     private static XlsModuleOpenClass getComponentOpenClass(IBindingContext bindingContext) {
@@ -404,9 +403,9 @@ public final class RuleRowHelper {
             if (openlAdaptor.getHeader() != null) {
                 IOpenMethodHeader oldHeader = openlAdaptor.getHeader();
                 OpenMethodHeader newHeader = new OpenMethodHeader(oldHeader.getName(),
-                        paramType,
-                        oldHeader.getSignature(),
-                        oldHeader.getDeclaringClass());
+                    paramType,
+                    oldHeader.getSignature(),
+                    oldHeader.getDeclaringClass());
                 openlAdaptor.setHeader(newHeader);
 
                 if (source.startsWith("{") && source.endsWith("}")) {
@@ -415,11 +414,11 @@ public final class RuleRowHelper {
                     return openlAdaptor.makeMethod(srcCode);
                 }
 
-                if (source.startsWith("=") && (source.length() > 2 || source.length() == 2 && Character.isLetterOrDigit(
-                        source.charAt(1)))) {
+                if (source.startsWith("=") && (source.length() > 2 || source.length() == 2 && Character
+                    .isLetterOrDigit(source.charAt(1)))) {
 
                     GridCellSourceCodeModule gridSource = new GridCellSourceCodeModule(cell.getSource(),
-                            bindingContext);
+                        bindingContext);
                     IOpenSourceCodeModule code = new SubTextSourceCodeModule(gridSource, 1);
 
                     return openlAdaptor.makeMethod(code);
@@ -429,10 +428,10 @@ public final class RuleRowHelper {
             Class<?> expectedType = paramType.getInstanceClass();
             if (expectedType == null) {
                 IOpenSourceCodeModule cellSourceCodeModule = new GridCellSourceCodeModule(cell.getSource(),
-                        bindingContext);
+                    bindingContext);
                 BindHelper.processError(String.format("Cannot parse cell value '%s'. Undefined cell type.", source),
-                        cellSourceCodeModule,
-                        bindingContext);
+                    cellSourceCodeModule,
+                    bindingContext);
                 return null;
             }
 
@@ -471,10 +470,10 @@ public final class RuleRowHelper {
                 // CompositeSyntaxNodeException) with not user-friendly message.
                 //
                 String message = String.format("Cannot parse cell value '%s'. Expected value of type '%s'.",
-                        source,
-                        expectedType.getSimpleName());
+                    source,
+                    expectedType.getSimpleName());
                 IOpenSourceCodeModule cellSourceCodeModule = new GridCellSourceCodeModule(cell.getSource(),
-                        bindingContext);
+                    bindingContext);
                 BindHelper.processError(message, e, cellSourceCodeModule, bindingContext);
             }
 
@@ -487,7 +486,7 @@ public final class RuleRowHelper {
             } catch (Exception e) {
                 String message = String.format("Invalid cell value '%s'", source);
                 IOpenSourceCodeModule cellSourceCodeModule = new GridCellSourceCodeModule(cell.getSource(),
-                        bindingContext);
+                    bindingContext);
 
                 BindHelper.processError(message, e, cellSourceCodeModule, bindingContext);
             }
@@ -532,9 +531,9 @@ public final class RuleRowHelper {
 
     public static CellMetaInfo createCellMetaInfo(IdentifierNode identifier, IMetaInfo metaInfo, NodeType nodeType) {
         SimpleNodeUsage nodeUsage = new SimpleNodeUsage(identifier,
-                metaInfo.getDisplayName(INamedThing.SHORT),
-                metaInfo.getSourceUrl(),
-                nodeType);
+            metaInfo.getDisplayName(INamedThing.SHORT),
+            metaInfo.getSourceUrl(),
+            nodeType);
         return new CellMetaInfo(JavaOpenClass.STRING, false, Collections.singletonList(nodeUsage));
     }
 
@@ -553,8 +552,8 @@ public final class RuleRowHelper {
         }
     }
 
-    @SuppressWarnings("unchecked") public static void validateValue(Object value, IOpenClass paramType) throws
-                                                                                                        OpenLCompilationException {
+    @SuppressWarnings("unchecked")
+    public static void validateValue(Object value, IOpenClass paramType) throws OpenLCompilationException {
         IDomain<Object> domain = (IDomain<Object>) paramType.getDomain();
 
         if (domain != null) {
@@ -562,8 +561,9 @@ public final class RuleRowHelper {
         }
     }
 
-    private static void validateDomain(Object value, IDomain<Object> domain, IOpenClass paramType) throws
-                                                                                                   OpenLCompilationException {
+    private static void validateDomain(Object value,
+            IDomain<Object> domain,
+            IOpenClass paramType) throws OpenLCompilationException {
         if (value == null) {
             return;
         }
@@ -586,8 +586,8 @@ public final class RuleRowHelper {
                 //
                 boolean contains = domain.selectObject(value);
                 if (!contains) {
-                    throw new OpenLCompilationException(String.format(
-                            "The value '%s' is outside of valid domain '%s'. Valid values: %s",
+                    throw new OpenLCompilationException(
+                        String.format("The value '%s' is outside of valid domain '%s'. Valid values: %s",
                             value,
                             paramType.getName(),
                             DomainUtils.toString(domain)));
@@ -644,15 +644,15 @@ public final class RuleRowHelper {
                 String[] tokens = extractElementsFromCommaSeparatedArray(dataTable.getRow(0));
                 if (tokens != null && tokens.length == 1) {
                     ConstantOpenField constantOpenField = findConstantField(openlAdaptor.getBindingContext(),
-                            tokens[0]);
+                        tokens[0]);
                     if (constantOpenField != null) {
                         IOpenCast openCast = openlAdaptor.getBindingContext()
-                                .getCast(constantOpenField.getType(), paramType);
+                            .getCast(constantOpenField.getType(), paramType);
                         if (openCast != null && openCast.isImplicit()) {
                             if (!openlAdaptor.getBindingContext().isExecutionMode()) {
                                 addConstantMetaInfo(openlAdaptor,
-                                        constantOpenField,
-                                        dataTable.getRow(0).getSource().getCell(0, 0));
+                                    constantOpenField,
+                                    dataTable.getRow(0).getSource().getCell(0, 0));
                             }
                             return openCast.convert(constantOpenField.getValue());
                         }
@@ -661,11 +661,11 @@ public final class RuleRowHelper {
 
                 // load comma separated array
                 return loadCommaSeparatedArrayParams(dataTable,
-                        paramName,
-                        ruleName,
-                        openlAdaptor,
-                        paramType,
-                        arrayType);
+                    paramName,
+                    ruleName,
+                    openlAdaptor,
+                    paramType,
+                    arrayType);
             } else {
                 return loadSingleParam(paramType, paramName, ruleName, dataTable, openlAdaptor);
             }
@@ -682,12 +682,8 @@ public final class RuleRowHelper {
             IOpenClass paramType) {
 
         ILogicalTable paramSource = dataTable.getRow(0);
-        Object params = RuleRowHelper.loadCommaSeparatedParam(aggregateType,
-                paramType,
-                paramName,
-                ruleName,
-                paramSource,
-                openlAdaptor);
+        Object params = RuleRowHelper
+            .loadCommaSeparatedParam(aggregateType, paramType, paramName, ruleName, paramSource, openlAdaptor);
         Class<?> paramClass = params.getClass();
         if (paramClass.isArray() && !paramClass.getComponentType().isPrimitive()) {
             return processAsObjectParams(paramType, (Object[]) params);
@@ -699,10 +695,10 @@ public final class RuleRowHelper {
      * Checks if the elements of parameters array are the instances of {@link CompositeMethod}, if yes process it
      * through {@link ArrayHolder}. If no return Object[].
      *
-     * @param paramType   parameter type
+     * @param paramType parameter type
      * @param paramsArray array of parameters
      * @return {@link ArrayHolder} if elements of parameters array are instances of {@link CompositeMethod}, in other
-     * case Object[].
+     *         case Object[].
      */
     private static Object processAsObjectParams(IOpenClass paramType, Object[] paramsArray) {
         int paramsLength = paramsArray.length;
@@ -731,7 +727,7 @@ public final class RuleRowHelper {
         boolean hasFormulas = false;
         if (!paramType.isArray()) {
             List<Object> values = new ArrayList<>();
-            //1 dim array
+            // 1 dim array
             int height = dataTable.getHeight();
             int width = dataTable.getWidth();
             boolean byHeight = height > 1 || width == 1;
@@ -749,7 +745,7 @@ public final class RuleRowHelper {
                     values.add(EMPTY_CELL);
                 }
             }
-            //For backward compatibility
+            // For backward compatibility
             while (values.size() > 0 && values.get(values.size() - 1) == EMPTY_CELL) {
                 values.remove(values.size() - 1);
             }
@@ -771,7 +767,7 @@ public final class RuleRowHelper {
             }
         } else {
             List<Object[]> values = new ArrayList<>();
-            //2 dim array
+            // 2 dim array
             for (int i = 0; i < dataTable.getWidth(); i++) {
                 Object[] values1 = new Object[dataTable.getHeight()];
                 boolean emptyRow = true;
@@ -781,11 +777,8 @@ public final class RuleRowHelper {
                     String cellValue = cell.getCell(0, 0).getStringValue();
                     if (!StringUtils.isEmpty(cellValue)) {
                         emptyRow = false;
-                        Object parameter = loadSingleParam(paramType.getComponentClass(),
-                                paramName,
-                                ruleName,
-                                cell,
-                                openlAdaptor);
+                        Object parameter = loadSingleParam(paramType
+                            .getComponentClass(), paramName, ruleName, cell, openlAdaptor);
                         if (parameter instanceof CompositeMethod) {
                             hasFormulas = true;
                         }
@@ -817,7 +810,7 @@ public final class RuleRowHelper {
                 for (int i = 0; i < values.size(); i++) {
                     IAggregateInfo aggregateInfo1 = paramType.getAggregateInfo();
                     Object array1 = aggregateInfo1.makeIndexedAggregate(paramType.getComponentClass(),
-                            dataTable.getHeight());
+                        dataTable.getHeight());
                     IOpenIndex index1 = aggregateInfo1.getIndex(paramType);
                     for (int j = 0; j < values.get(i).length; j++) {
                         Object v = values.get(i)[j];

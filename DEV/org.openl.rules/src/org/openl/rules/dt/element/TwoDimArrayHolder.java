@@ -24,7 +24,7 @@ public class TwoDimArrayHolder implements ArrayHolder {
         for (int i = 0; i < values.length; i++) {
             if (values[i] != null) {
                 Object array = componentType.getAggregateInfo()
-                        .makeIndexedAggregate(componentType.getComponentClass(), values[i].length);
+                    .makeIndexedAggregate(componentType.getComponentClass(), values[i].length);
                 for (int j = 0; j < values[i].length; j++) {
                     if (values[i][j] instanceof CompositeMethod) {
                         CompositeMethod compositeMethod = (CompositeMethod) values[i][j];
@@ -32,8 +32,8 @@ public class TwoDimArrayHolder implements ArrayHolder {
                         Array.set(array, j, result);
                     } else {
                         Array.set(array,
-                                j,
-                                values[i][j] == null ? componentType.getComponentClass().nullObject() : values[i][j]);
+                            j,
+                            values[i][j] == null ? componentType.getComponentClass().nullObject() : values[i][j]);
                     }
                 }
                 Array.set(res, i, array);
