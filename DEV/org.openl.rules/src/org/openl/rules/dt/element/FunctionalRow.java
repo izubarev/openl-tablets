@@ -281,11 +281,11 @@ public abstract class FunctionalRow implements IDecisionRow {
 
         if (method.getMethodBodyBoundNode() != null) {
             prepareParams(method.getDeclaringClass(),
-                    method.getSignature(),
-                    method.getType(),
-                    method.getMethodBodyBoundNode().getSyntaxNode().getModule(),
-                    ota.getOpenl(),
-                    ota.getBindingContext());
+                method.getSignature(),
+                method.getType(),
+                method.getMethodBodyBoundNode().getSyntaxNode().getModule(),
+                ota.getOpenl(),
+                ota.getBindingContext());
         }
 
         boolean[] paramIndexed = getParamIndexed(params);
