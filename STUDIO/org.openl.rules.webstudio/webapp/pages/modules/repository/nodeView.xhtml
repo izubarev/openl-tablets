@@ -52,7 +52,7 @@
                                  onclick="if (!canOverwriteRevision()) return false; openUpdateFileDialog();return false;"
                                  title="Upload the updated file"/>
                 <h:commandButton id="exportId" rendered="#{repositoryTreeState.canExport and node.hasVersions()}"
-                                 value="Export file" onclick="openExportModuleDialog('#{artefact.repository.id}', '#{artefact.project.name}', '#{node.name}');return false;"
+                                 value="Export file" onclick="openExportModuleDialog('#{artefact.repository.id}', '#{artefact.project.name}', '#{node.internalArtifactPath.stringValue}');return false;"
                                  title="Export file"/>
                 <h:commandButton id="copyId" rendered="#{repositoryTreeState.canModify}" value="Copy file"
                                  onclick="if (!canOverwriteRevision()) return false; openCopyFileDialog();return false;"
@@ -132,7 +132,7 @@
 
                         <h:commandButton id="unlockId1"
                                          rendered="#{repositoryTreeController.canUnlock and node.data.locked and not node.data.lockedByMe}"
-                                         value="Unlock" onclick="openUnlockDialog('project');return false;"
+                                         value="Unlock" onclick="openSelectedUnlockDialog('project');return false;"
                                          title="#{unlockMessage}">
                             <f:ajax render="unlockId1"/>
                         </h:commandButton>
@@ -370,7 +370,7 @@
                 <h:commandButton id="unlockId2"
                                  rendered="#{repositoryTreeController.canUnlockDeployment and node.data.locked and not node.data.lockedByMe}"
                                  value="Unlock Deploy Configuration"
-                                 onclick="openUnlockDialog('deployment');return false;" title="#{unlockMessage}">
+                                 onclick="openSelectedUnlockDialog('deployment');return false;" title="#{unlockMessage}">
                     <f:ajax render="unlockId2"/>
                 </h:commandButton>
             </h:panelGroup>

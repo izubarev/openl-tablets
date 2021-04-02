@@ -1,1 +1,0 @@
-ERROR: Cannot convert from 'double' to 'java.lang.Void'.

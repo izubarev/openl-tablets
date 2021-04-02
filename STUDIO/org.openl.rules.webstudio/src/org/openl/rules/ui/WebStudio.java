@@ -114,9 +114,9 @@ public class WebStudio implements DesignTimeRepositoryListener {
 
     private final Logger log = LoggerFactory.getLogger(WebStudio.class);
 
-    private static final Comparator<Module> MODULES_COMPARATOR = Comparator.comparing(Module::getName);
-    private static final Comparator<ProjectDescriptor> PROJECT_DESCRIPTOR_COMPARATOR = (o1, o2) ->
-            o1.getName().compareToIgnoreCase(o2.getName());
+    private static final Comparator<Module> MODULES_COMPARATOR = Comparator.comparing(Module::getName, String.CASE_INSENSITIVE_ORDER);
+    private static final Comparator<ProjectDescriptor> PROJECT_DESCRIPTOR_COMPARATOR = Comparator
+            .comparing(ProjectDescriptor::getName, String.CASE_INSENSITIVE_ORDER);
 
     private final RulesTreeView typeView = new TypeView();
     private final RulesTreeView fileView = new FileView();
@@ -632,14 +632,7 @@ public class WebStudio implements DesignTimeRepositoryListener {
         }
         ProjectDescriptor projectDescriptor;
         try {
-            for (Module module : currentProject.getModules()) {
-                File moduleFile = module.getRulesPath().toFile();
-                String moduleHistoryPath = currentProject.getProjectFolder()
-                        .resolve(FolderHelper.HISTORY_FOLDER)
-                        .resolve(module.getName())
-                        .toString();
-                ProjectHistoryService.init(moduleHistoryPath, moduleFile);
-            }
+            initProjectHistory();
             tryLockProject();
 
             projectDescriptor = getCurrentProjectDescriptor();
@@ -708,23 +701,37 @@ public class WebStudio implements DesignTimeRepositoryListener {
             // TODO Replace exceptions with FacesUtils.addErrorMessage()
             throw new IllegalStateException("Error while updating project in user workspace.", e);
         }
+        storeProjectHistory();
+        clearUploadedFiles();
 
-        currentProject = resolveProject(projectDescriptor);
+        return null;
+    }
+
+    public void storeProjectHistory() {
+        currentProject = resolveProject(getCurrentProjectDescriptor());
+        if (currentProject == null) {
+            log.warn("The project has not been resolved after update.");
+        } else {
+            for (Module module : currentProject.getModules()) {
+                File moduleFile = module.getRulesPath().toFile();
+                String moduleHistoryPath = currentProject.getProjectFolder()
+                        .resolve(FolderHelper.HISTORY_FOLDER)
+                        .resolve(module.getName())
+                        .toString();
+                ProjectHistoryService.save(moduleHistoryPath, moduleFile);
+            }
+        }
+    }
+
+    public void initProjectHistory(){
         for (Module module : currentProject.getModules()) {
             File moduleFile = module.getRulesPath().toFile();
             String moduleHistoryPath = currentProject.getProjectFolder()
                     .resolve(FolderHelper.HISTORY_FOLDER)
                     .resolve(module.getName())
                     .toString();
-            ProjectHistoryService.save(moduleHistoryPath, moduleFile);
+            ProjectHistoryService.init(moduleHistoryPath, moduleFile);
         }
-        if (currentProject == null) {
-            log.warn("The project has not been resolved after update.");
-        }
-
-        clearUploadedFiles();
-
-        return null;
     }
 
     private void tryLockProject() throws ProjectException {
@@ -768,6 +775,18 @@ public class WebStudio implements DesignTimeRepositoryListener {
         // are shown in Repository.
         // In this case we must show the list of all projects in Editor.
         return newProjectDescriptor;
+    }
+
+    public synchronized void forceUpdateProjectDescriptor(String repoId, ProjectDescriptor newProjectDescriptor,
+                                                          ProjectDescriptor oldProjectDescriptor) {
+        newProjectDescriptor.getModules().sort(MODULES_COMPARATOR);
+        if (currentProject.equals(oldProjectDescriptor)) {
+            currentProject = newProjectDescriptor;
+        }
+        List<ProjectDescriptor> descriptors = projects.get(repoId);
+        if (descriptors.remove(oldProjectDescriptor)) {
+            descriptors.add(newProjectDescriptor);
+        }
     }
 
     public boolean isUploadedProjectStructureChanged() {
@@ -1348,10 +1367,6 @@ public class WebStudio implements DesignTimeRepositoryListener {
         List<ProjectVersion> versions = project.getVersions();
         Collections.reverse(versions);
         return versions;
-    }
-
-    public String getCurrentModulePath() {
-        return currentModule.getRulesPath().getFileName().toString();
     }
 
     public void freezeProject(String name) {

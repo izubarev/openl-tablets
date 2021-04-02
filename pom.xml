@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?><!-- This file is for releasing OpenL version wIth maven-release-plugin -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.openl.rules</groupId>
     <artifactId>openl-tablets</artifactId>
     <packaging>pom</packaging>
-    <version>5.24.0-SNAPSHOT</version>
+    <version>5.24.1-SNAPSHOT</version>
     <name>OpenL Tablets</name>
     <url>https://openl-tablets.org</url>
     <description>OpenL Tablets rules engine and related frameworks</description>
@@ -79,8 +78,8 @@
         <!-- If true, deploying of artifacts will be skipped  -->
         <maven.deploy.skip>false</maven.deploy.skip>
         <maven.install.skip>${maven.deploy.skip}</maven.install.skip>
-        <org.springframework.version>5.2.12.RELEASE</org.springframework.version>
-        <org.springsecurity.version>5.4.2</org.springsecurity.version>
+        <org.springframework.version>5.2.13.RELEASE</org.springframework.version>
+        <org.springsecurity.version>5.4.5</org.springsecurity.version>
         <org.hibernate.version>5.2.18.Final</org.hibernate.version>
         <!-- Don't upgrade to 2.4.0. https://balusc.omnifaces.org/2018/04/do-not-use-orgglassfish-mojarra-240.html
             At the time of writing the latest official version is 2.3.9.
@@ -93,7 +92,7 @@
         <cassandra.driver.version>4.3.1</cassandra.driver.version>
         <cassandra.unit.version>3.11.2.0</cassandra.unit.version>
         <cassandra.unit.driver.version>3.8.0</cassandra.unit.driver.version>
-        <org.apache.cxf.version>3.4.2</org.apache.cxf.version>
+        <org.apache.cxf.version>3.4.3</org.apache.cxf.version>
         <!-- if updated org.apache.cxf.version to version from org.apache.cxf -->
         <jakarta.ws.rs-api.version>2.1.6</jakarta.ws.rs-api.version>
         <!-- if updated org.apache.cxf.version to version from org.apache.cxf:cxf-rt-databinding-aegis:jar -> org.apache.cxf:cxf-core -> org.glassfish.jaxb:jaxb-runtime -->
@@ -106,13 +105,13 @@
         <com.fasterxml.jackson.version>2.11.4</com.fasterxml.jackson.version>
         <maven.api.version>3.6.0</maven.api.version>
         <maven.plugin.version>3.6.0</maven.plugin.version>
-        <jetty.server.version>9.4.36.v20210114</jetty.server.version>
+        <jetty.server.version>9.4.38.v20210224</jetty.server.version>
         <elasticsearch-cluster-runner.version>6.8.9.0</elasticsearch-cluster-runner.version>
         <elasticsearch.version>6.8.13</elasticsearch.version>
         <hive.jdbc.version>3.1.2</hive.jdbc.version>
         <org.apache.avro.version>1.10.0</org.apache.avro.version>
         <org.apache.zookeeper.version>3.6.2</org.apache.zookeeper.version>
-        <org.apache.thrift.version>0.13.0</org.apache.thrift.version>
+        <org.apache.thrift.version>0.14.1</org.apache.thrift.version>
         <org.apache.ant.varsion>1.10.9</org.apache.ant.varsion>
         <owasp.version>6.1.0</owasp.version>
         <groovy.version>3.0.7</groovy.version>
@@ -241,7 +240,7 @@
                         <systemPropertyVariables>
                             <openl.home>${openl.home}</openl.home>
                             <openl.info>${openl.info}</openl.info>
-                            <openl.config.location/>
+                            <openl.config.location />
                             <java.io.tmpdir>${java.io.tmpdir}</java.io.tmpdir>
                         </systemPropertyVariables>
                     </configuration>
@@ -414,7 +413,7 @@
             </activation>
             <properties>
                 <!-- Empty for building without JaCoCo agent -->
-                <jacoco.argLine/>
+                <jacoco.argLine />
                 <!-- JaCoCo agent cannot be attached if ${argLine} is missed -->
             </properties>
         </profile>
@@ -426,7 +425,7 @@
                 </property>
             </activation>
             <properties>
-                <sonar/>
+                <sonar />
                 <invoker.timeoutInSeconds>40</invoker.timeoutInSeconds>
             </properties>
             <build>
@@ -1116,7 +1115,7 @@
             <dependency>
                 <groupId>org.webjars</groupId>
                 <artifactId>swagger-ui</artifactId>
-                <version>3.38.0</version>
+                <version>3.41.1</version>
             </dependency>
             <dependency>
                 <groupId>io.swagger</groupId>
@@ -1264,7 +1263,7 @@
             <dependency>
                 <groupId>com.thoughtworks.xstream</groupId>
                 <artifactId>xstream</artifactId>
-                <version>1.4.15</version>
+                <version>1.4.16</version>
             </dependency>
             <!-- graph-theory data structures and algorithms. -->
             <dependency>
