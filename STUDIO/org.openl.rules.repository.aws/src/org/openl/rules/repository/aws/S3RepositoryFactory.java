@@ -17,7 +17,7 @@ public class S3RepositoryFactory implements RepositoryFactory {
 
     @Override
     public boolean accept(String factoryID) {
-        return factoryID.equals(ID) || factoryID.equals(OLD_ID);
+        return ID.equals(factoryID) || OLD_ID.equals(factoryID);
     }
 
     @Override

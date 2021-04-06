@@ -16,7 +16,7 @@ public class JarRepositoryFactory implements RepositoryFactory {
 
     @Override
     public boolean accept(String factoryID) {
-        return factoryID.equals(ID);
+        return ID.equals(factoryID);
     }
 
     @Override

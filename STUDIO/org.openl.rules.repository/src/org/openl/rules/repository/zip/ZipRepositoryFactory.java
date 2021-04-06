@@ -16,7 +16,7 @@ public class ZipRepositoryFactory implements RepositoryFactory {
 
     @Override
     public boolean accept(String factoryID) {
-        return factoryID.equals(ID);
+        return ID.equals(factoryID);
     }
 
     @Override
