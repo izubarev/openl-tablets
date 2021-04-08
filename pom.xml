@@ -5,7 +5,7 @@
     <groupId>org.openl.rules</groupId>
     <artifactId>openl-tablets</artifactId>
     <packaging>pom</packaging>
-    <version>5.24.1-SNAPSHOT</version>
+    <version>5.24.2-SNAPSHOT</version>
     <name>OpenL Tablets</name>
     <url>https://openl-tablets.org</url>
     <description>OpenL Tablets rules engine and related frameworks</description>
@@ -79,8 +79,8 @@
         <!-- If true, deploying of artifacts will be skipped  -->
         <maven.deploy.skip>false</maven.deploy.skip>
         <maven.install.skip>${maven.deploy.skip}</maven.install.skip>
-        <org.springframework.version>5.2.12.RELEASE</org.springframework.version>
-        <org.springsecurity.version>5.4.2</org.springsecurity.version>
+        <org.springframework.version>5.2.13.RELEASE</org.springframework.version>
+        <org.springsecurity.version>5.4.5</org.springsecurity.version>
         <org.hibernate.version>5.2.18.Final</org.hibernate.version>
         <!-- Don't upgrade to 2.4.0. https://balusc.omnifaces.org/2018/04/do-not-use-orgglassfish-mojarra-240.html
             At the time of writing the latest official version is 2.3.9.
@@ -93,7 +93,7 @@
         <cassandra.driver.version>4.3.1</cassandra.driver.version>
         <cassandra.unit.version>3.11.2.0</cassandra.unit.version>
         <cassandra.unit.driver.version>3.8.0</cassandra.unit.driver.version>
-        <org.apache.cxf.version>3.4.2</org.apache.cxf.version>
+        <org.apache.cxf.version>3.4.3</org.apache.cxf.version>
         <!-- if updated org.apache.cxf.version to version from org.apache.cxf -->
         <jakarta.ws.rs-api.version>2.1.6</jakarta.ws.rs-api.version>
         <!-- if updated org.apache.cxf.version to version from org.apache.cxf:cxf-rt-databinding-aegis:jar -> org.apache.cxf:cxf-core -> org.glassfish.jaxb:jaxb-runtime -->
@@ -1121,7 +1121,7 @@
             <dependency>
                 <groupId>org.webjars</groupId>
                 <artifactId>swagger-ui</artifactId>
-                <version>3.38.0</version>
+                <version>3.41.1</version>
             </dependency>
             <dependency>
                 <groupId>io.swagger</groupId>
@@ -1269,7 +1269,7 @@
             <dependency>
                 <groupId>com.thoughtworks.xstream</groupId>
                 <artifactId>xstream</artifactId>
-                <version>1.4.15</version>
+                <version>1.4.16</version>
             </dependency>
             <!-- graph-theory data structures and algorithms. -->
             <dependency>

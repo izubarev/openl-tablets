@@ -14,6 +14,7 @@ import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.apache.commons.lang3.StringUtils;
 import org.openl.base.INamedThing;
 import org.openl.binding.IBindingContext;
+import org.openl.binding.IBoundMethodNode;
 import org.openl.binding.exception.DuplicatedVarException;
 import org.openl.binding.impl.NodeType;
 import org.openl.binding.impl.NodeUsage;
@@ -26,6 +27,7 @@ import org.openl.rules.binding.RuleRowHelper;
 import org.openl.rules.calc.element.SpreadsheetCell;
 import org.openl.rules.calc.element.SpreadsheetExpressionMarker;
 import org.openl.rules.calc.result.ArrayResultBuilder;
+import org.openl.rules.calc.result.EmptyResultBuilder;
 import org.openl.rules.calc.result.IResultBuilder;
 import org.openl.rules.calc.result.ScalarResultBuilder;
 import org.openl.rules.calc.result.SpreadsheetResultBuilder;
@@ -39,14 +41,17 @@ import org.openl.rules.table.ILogicalTable;
 import org.openl.rules.table.LogicalTableHelper;
 import org.openl.rules.table.openl.GridCellSourceCodeModule;
 import org.openl.source.IOpenSourceCodeModule;
+import org.openl.syntax.ISyntaxNode;
 import org.openl.syntax.exception.SyntaxNodeException;
 import org.openl.syntax.exception.SyntaxNodeExceptionUtils;
 import org.openl.syntax.impl.IdentifierNode;
 import org.openl.syntax.impl.Tokenizer;
 import org.openl.types.IAggregateInfo;
 import org.openl.types.IOpenClass;
+import org.openl.types.impl.CompositeMethod;
 import org.openl.types.java.JavaOpenClass;
 import org.openl.util.JavaKeywordUtils;
+import org.openl.util.OpenClassUtils;
 import org.openl.util.text.AbsolutePosition;
 import org.openl.util.text.ILocation;
 import org.openl.util.text.IPosition;
@@ -435,10 +440,9 @@ public class SpreadsheetComponentsBuilder {
         if (Boolean.FALSE
             .equals(tableSyntaxNode.getTableProperties().getAutoType()) && headerDefinition.getType() == null) {
             headerDefinition.setType(spreadsheetHeaderType);
-        } else if (!isFormula(headerDefinition) &&
-                (spreadsheetHeaderType.getAggregateInfo() == null
+        } else if (spreadsheetHeaderType.getAggregateInfo() == null
                     || spreadsheetHeaderType.getAggregateInfo() != null
-                        && spreadsheetHeaderType.getAggregateInfo().getComponentType(spreadsheetHeaderType) == null)) {
+                        && spreadsheetHeaderType.getAggregateInfo().getComponentType(spreadsheetHeaderType) == null) {
             int nonEmptyCellsCount = getNonEmptyCellsCount(headerDefinition);
             if (nonEmptyCellsCount == 1) {
                 headerDefinition.setType(spreadsheetHeaderType);
@@ -448,26 +452,6 @@ public class SpreadsheetComponentsBuilder {
         String key = headerDefinitions.getKey(headerDefinition);
         returnHeaderDefinition = new ReturnSpreadsheetHeaderDefinition(headerDefinition);
         headerDefinitions.replace(key, returnHeaderDefinition);
-    }
-
-    private boolean isFormula(SpreadsheetHeaderDefinition headerDefinition) {
-        String cellValue = "";
-
-        try {
-            ILogicalTable cell = LogicalTableHelper.mergeBounds(
-                cellsHeaderExtractor.getRowNamesTable().getRow(headerDefinition.getRow()),
-                cellsHeaderExtractor.getColumnNamesTable().getColumn(headerDefinition.getColumn())
-            );
-            cellValue = Optional.ofNullable(cell.getSource())
-                    .map(table -> cell.getCell(0, 0))
-                    .map(ICell::getStringValue)
-                    .map(StringUtils::trimToNull)
-                    .orElse("");
-        } catch (RuntimeException e){
-            LOG.warn("Could not extract cell value: ", e);
-        }
-
-        return SpreadsheetExpressionMarker.isFormula(cellValue);
     }
 
     private int getNonEmptyCellsCount(SpreadsheetHeaderDefinition headerDefinition) {
@@ -494,7 +478,10 @@ public class SpreadsheetComponentsBuilder {
                     cellsHeaderExtractor.getRowNamesTable().getRow(rowIndex),
                     cellsHeaderExtractor.getColumnNamesTable().getColumn(columnIndex));
                 String value = cell.getSource().getCell(0, 0).getStringValue();
-                if (!StringUtils.isBlank(value)) {
+                boolean isFormula = Optional.ofNullable(StringUtils.trimToNull(value))
+                        .map(SpreadsheetExpressionMarker::isFormula)
+                        .orElse(false);
+                if (!StringUtils.isBlank(value) && !isFormula) {
                     nonEmptyCellsCount += 1;
                 }
             }
@@ -512,6 +499,11 @@ public class SpreadsheetComponentsBuilder {
 
     private IResultBuilder getResultBuilderInternal(Spreadsheet spreadsheet,
             IBindingContext bindingContext) throws SyntaxNodeException {
+
+        if (OpenClassUtils.isVoid(spreadsheet.getHeader().getType())) {
+            return new EmptyResultBuilder();
+        }
+
         IResultBuilder resultBuilder;
 
         SymbolicTypeDefinition symbolicTypeDefinition = null;
@@ -603,6 +595,9 @@ public class SpreadsheetComponentsBuilder {
             }
 
             if (returnSpreadsheetCells.size() == 0) {
+                IdentifierNode symbolicTypeDefinitionName = Optional.ofNullable(symbolicTypeDefinition)
+                        .map(SymbolicTypeDefinition::getName)
+                        .orElse(null);
                 if (!nonEmptySpreadsheetCells.isEmpty()) {
                     SpreadsheetCell nonEmptySpreadsheetCell = nonEmptySpreadsheetCells
                         .get(nonEmptySpreadsheetCells.size() - 1);
@@ -610,15 +605,23 @@ public class SpreadsheetComponentsBuilder {
                         throw SyntaxNodeExceptionUtils.createError(
                             String.format("Cannot convert from '%s' to '%s'.",
                                 nonEmptySpreadsheetCell.getType().getName(),
-                                spreadsheet.getHeader().getType().getName()),
-                            symbolicTypeDefinition == null ? null : symbolicTypeDefinition.getName());
+                                spreadsheet.getHeader().getType().getName()
+                            ),
+                            Optional.ofNullable(nonEmptySpreadsheetCell.getMethod())
+                                .filter(CompositeMethod.class::isInstance)
+                                .map(CompositeMethod.class::cast)
+                                .map(CompositeMethod::getMethodBodyBoundNode)
+                                .map(IBoundMethodNode::getSyntaxNode)
+                                .orElse(symbolicTypeDefinitionName)
+                        );
                     } else {
                         return null;
                     }
                 } else {
-                    throw SyntaxNodeExceptionUtils.createError("There is no return expression cell.",
-                        symbolicTypeDefinition == null ? null : symbolicTypeDefinition.getName());
-
+                    throw SyntaxNodeExceptionUtils.createError(
+                        "There is no return expression cell.",
+                        symbolicTypeDefinitionName
+                    );
                 }
             } else {
                 if (asArray) {
