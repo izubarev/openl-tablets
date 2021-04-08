@@ -1,12 +1,5 @@
 package org.openl.itest.core;
 
-import org.eclipse.jetty.annotations.AnnotationConfiguration;
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.webapp.Configuration;
-import org.eclipse.jetty.webapp.WebAppContext;
-import org.eclipse.jetty.webapp.WebInfConfiguration;
-
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -15,6 +8,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.eclipse.jetty.annotations.AnnotationConfiguration;
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.webapp.Configuration;
+import org.eclipse.jetty.webapp.WebAppContext;
+import org.eclipse.jetty.webapp.WebInfConfiguration;
 
 /**
  * Simple wrapper for Jetty Server
@@ -25,13 +25,17 @@ public class JettyServer {
 
     private final Server server;
 
-    private JettyServer(String explodedWar, boolean sharedClassloader) {
+    private JettyServer(String explodedWar, boolean sharedClassloader, String resourcesToScan) {
         this.server = new Server(0);
         this.server.setStopAtShutdown(true);
         WebAppContext webAppContext = new WebAppContext();
         webAppContext.setResourceBase(explodedWar);
         webAppContext.setExtraClasspath(getExtraClasspath());
-        webAppContext.setAttribute("org.eclipse.jetty.server.webapp.WebInfIncludeJarPattern", ".*/classes/.*");
+        StringBuilder base = new StringBuilder(".*/classes/.*");
+        if (resourcesToScan != null) {
+            base.append("|").append(resourcesToScan);
+        }
+        webAppContext.setAttribute("org.eclipse.jetty.server.webapp.WebInfIncludeJarPattern", base.toString());
         webAppContext
             .setConfigurations(new Configuration[] { new AnnotationConfiguration(), new WebInfConfiguration() });
 
@@ -50,13 +54,23 @@ public class JettyServer {
     }
 
     public static JettyServer start() throws Exception {
-        JettyServer jetty = new JettyServer(System.getProperty("webservice-webapp"), false);
+        JettyServer jetty = new JettyServer(System.getProperty("webservice-webapp"), false, null);
         jetty.server.start();
         return jetty;
     }
 
     public static JettyServer startSharingClassLoader() throws Exception {
-        JettyServer jetty = new JettyServer(System.getProperty("webservice-webapp"), true);
+        JettyServer jetty = new JettyServer(System.getProperty("webservice-webapp"), true, null);
+        jetty.server.start();
+        return jetty;
+    }
+
+    /**
+     * If
+     * @param resourcesToScan - jars to scan
+     */
+    public static JettyServer startSharingClassLoaderWithAdditionalResources(String resourcesToScan) throws Exception {
+        JettyServer jetty = new JettyServer(System.getProperty("webservice-webapp"), true, resourcesToScan);
         jetty.server.start();
         return jetty;
     }

@@ -5,15 +5,21 @@ import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.annotation.WebListener;
 
+import org.openl.rules.ruleservice.spi.ContextProvider;
 import org.openl.spring.env.PropertySourcesLoader;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
 @WebListener
-public final class SpringInitializer implements ServletContextListener {
+public final class SpringInitializer implements ServletContextListener, ContextProvider {
 
     private static final String THIS = SpringInitializer.class.getName();
     private ClassPathXmlApplicationContext applicationContext;
+
+    @Override
+    public ApplicationContext getContext(ServletContext sc) {
+        return ((SpringInitializer) sc.getAttribute(THIS)).applicationContext;
+    }
 
     public static ApplicationContext getApplicationContext(ServletContext sc) {
         return ((SpringInitializer) sc.getAttribute(THIS)).applicationContext;
@@ -38,6 +44,7 @@ public final class SpringInitializer implements ServletContextListener {
             "classpath:openl-ruleservice-validation-beans.xml",
             "classpath:openl-ruleservice-store-log-data-beans.xml",
             "classpath:openl-ruleservice-admin-beans.xml",
+            "classpath:openl-ruleservice-extension-beans.xml",
             "classpath:openl-ruleservice-override-beans.xml");
         new PropertySourcesLoader().initialize(applicationContext, servletContext);
         applicationContext.addBeanFactoryPostProcessor(

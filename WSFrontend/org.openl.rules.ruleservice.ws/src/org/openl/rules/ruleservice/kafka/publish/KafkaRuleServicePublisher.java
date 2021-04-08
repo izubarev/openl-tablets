@@ -15,13 +15,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.openl.rules.ruleservice.core.OpenLService;
@@ -40,6 +43,7 @@ import org.openl.rules.ruleservice.kafka.conf.YamlObjectMapperBuilder;
 import org.openl.rules.ruleservice.kafka.databinding.KafkaConfigHolder;
 import org.openl.rules.ruleservice.publish.RuleServicePublisher;
 import org.openl.rules.ruleservice.publish.jaxrs.storelogdata.JacksonObjectSerializer;
+import org.openl.rules.ruleservice.spi.KafkaTracingProvider;
 import org.openl.rules.ruleservice.storelogdata.ObjectSerializer;
 import org.openl.rules.ruleservice.storelogdata.StoreLogDataManager;
 import org.openl.rules.serialization.JacksonObjectMapperFactory;
@@ -84,6 +88,9 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
     private StoreLogDataManager storeLogDataManager;
 
     private boolean storeLogDataEnabled = false;
+
+    private final ServiceLoader<KafkaTracingProvider> INTERCEPTOR_PROVIDERS = ServiceLoader
+        .load(KafkaTracingProvider.class);
 
     @Autowired
     @Qualifier("serviceDescriptionInProcess")
@@ -196,7 +203,8 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
 
     private Properties getProducerConfigs(OpenLService service,
             BaseKafkaConfig baseKafkaDeploy,
-            KafkaDeploy kafkaDeploy) throws IOException {
+            KafkaDeploy kafkaDeploy,
+            String producerInterceptors) throws IOException {
         Properties configs = new Properties();
         if (getDefaultKafkaDeploy().getProducerConfigs() != null) {
             configs.putAll(getDefaultKafkaDeploy().getProducerConfigs());
@@ -212,12 +220,26 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
         }
         useClientIdGeneratorIfPropertyIsNotSet(configs, service, baseKafkaDeploy);
         setBootstrapServers(service, baseKafkaDeploy, "Producer", configs);
+        addTracingInterceptorToProducer(configs, producerInterceptors);
         return configs;
+    }
+
+    private void addTracingInterceptorToProducer(Properties configs, String producerInterceptors) {
+        if (StringUtils.isNotBlank(producerInterceptors)) {
+            configs.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, producerInterceptors);
+        }
+    }
+
+    private void addTracingInterceptorToConsumer(Properties configs, String consumerInterceptors) {
+        if (StringUtils.isNotBlank(consumerInterceptors)) {
+            configs.put(ConsumerConfig.INTERCEPTOR_CLASSES_CONFIG, consumerInterceptors);
+        }
     }
 
     private Properties getDltProducerConfigs(OpenLService service,
             BaseKafkaConfig kafkaConfig,
-            KafkaDeploy kafkaDeploy) throws IOException {
+            KafkaDeploy kafkaDeploy,
+            String producerInterceptors) throws IOException {
         Properties configs = new Properties();
         if (getDefaultKafkaDeploy().getDltProducerConfigs() != null) {
             configs.putAll(getDefaultKafkaDeploy().getDltProducerConfigs());
@@ -231,6 +253,7 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
         if (getImmutableKafkaDeploy().getDltProducerConfigs() != null) {
             configs.putAll(getImmutableKafkaDeploy().getDltProducerConfigs());
         }
+        addTracingInterceptorToProducer(configs, producerInterceptors);
         useClientIdGeneratorIfPropertyIsNotSet(configs, service, kafkaConfig);
         setBootstrapServers(service, kafkaConfig, "DLT producer", configs);
         return configs;
@@ -238,7 +261,8 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
 
     private Properties getConsumerConfigs(OpenLService service,
             BaseKafkaConfig kafkaConfig,
-            KafkaDeploy kafkaDeploy) throws IOException {
+            KafkaDeploy kafkaDeploy,
+            String producerInterceptors) throws IOException {
         Properties configs = new Properties();
         if (getDefaultKafkaDeploy().getConsumerConfigs() != null) {
             configs.putAll(getDefaultKafkaDeploy().getConsumerConfigs());
@@ -254,6 +278,8 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
         }
         useClientIdGeneratorIfPropertyIsNotSet(configs, service, kafkaConfig);
         setBootstrapServers(service, kafkaConfig, "Consumer", configs);
+        addTracingInterceptorToConsumer(configs, producerInterceptors);
+
         if (!configs.containsKey(GROUP_ID)) {
             configs.setProperty(GROUP_ID, getDefaultGroupId());
         }
@@ -314,9 +340,16 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
             T kafkaConfig,
             KafkaDeploy kafkaDeploy) throws IOException {
         T config = cloner.deepClone(kafkaConfig);
-        config.setProducerConfigs(getProducerConfigs(service, kafkaConfig, kafkaDeploy));
-        config.setConsumerConfigs(getConsumerConfigs(service, kafkaConfig, kafkaDeploy));
-        config.setDltProducerConfigs(getDltProducerConfigs(service, kafkaConfig, kafkaDeploy));
+        String consumerInterceptors = "";
+        String producerInterceptors = "";
+        if (INTERCEPTOR_PROVIDERS.iterator().hasNext()) {
+            KafkaTracingProvider tracingProvider = INTERCEPTOR_PROVIDERS.iterator().next();
+            consumerInterceptors = tracingProvider.getConsumerInterceptorProviders();
+            producerInterceptors = tracingProvider.getProducerInterceptorProviders();
+        }
+        config.setProducerConfigs(getProducerConfigs(service, kafkaConfig, kafkaDeploy, producerInterceptors));
+        config.setConsumerConfigs(getConsumerConfigs(service, kafkaConfig, kafkaDeploy, consumerInterceptors));
+        config.setDltProducerConfigs(getDltProducerConfigs(service, kafkaConfig, kafkaDeploy, producerInterceptors));
         return config;
     }
 
@@ -470,6 +503,8 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
             }
             kafkaProducers.add(dltProducer);
         }
+        KafkaTracingProvider tracingProvider = INTERCEPTOR_PROVIDERS.iterator()
+            .hasNext() ? INTERCEPTOR_PROVIDERS.iterator().next() : null;
 
         final KafkaService kafkaService = KafkaService.createService(service,
             mergedKafkaConfig.getInTopic(),
@@ -480,7 +515,8 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
             dltProducer,
             objectSerializer,
             getStoreLogDataManager(),
-            isStoreLogDataEnabled());
+            isStoreLogDataEnabled(),
+            tracingProvider);
         kafkaServices.add(kafkaService);
 
         kafkaService.start();
@@ -559,7 +595,9 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
                     service.getDeployPath()));
             }
         } catch (Exception t) {
-            throw new RuleServiceDeployException(String.format("Failed to deploy service '%s'.", service.getDeployPath()), t);
+            throw new RuleServiceDeployException(
+                String.format("Failed to deploy service '%s'.", service.getDeployPath()),
+                t);
         } finally {
             Thread.currentThread().setContextClassLoader(oldClassLoader);
         }
@@ -667,7 +705,8 @@ public class KafkaRuleServicePublisher implements RuleServicePublisher, Resource
             }
             runningServices.remove(service);
         } catch (Exception t) {
-            throw new RuleServiceUndeployException(String.format("Failed to undeploy service '%s'.", service.getDeployPath()),
+            throw new RuleServiceUndeployException(
+                String.format("Failed to undeploy service '%s'.", service.getDeployPath()),
                 t);
         }
     }
