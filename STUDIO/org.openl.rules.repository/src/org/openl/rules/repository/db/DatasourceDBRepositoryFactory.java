@@ -17,7 +17,7 @@ public class DatasourceDBRepositoryFactory implements RepositoryFactory {
 
     @Override
     public boolean accept(String factoryID) {
-        return ID.equals(factoryID) || OLD_ID.equals(factoryID);
+        return factoryID.equals(ID) || factoryID.equals(OLD_ID);
     }
 
     @Override
