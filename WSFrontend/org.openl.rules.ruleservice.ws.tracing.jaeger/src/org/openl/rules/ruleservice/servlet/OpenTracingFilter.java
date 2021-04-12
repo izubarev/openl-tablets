@@ -27,10 +27,10 @@ public class OpenTracingFilter implements Filter {
     @Override
     public void init(FilterConfig filterConfig) {
         ServiceLoader<ContextProvider> loader = ServiceLoader.load(ContextProvider.class);
-        ContextProvider provider = loader.iterator().next();
-        if (provider == null) {
+        if (!loader.iterator().hasNext()) {
             enabled = false;
         } else {
+            ContextProvider provider = loader.iterator().next();
             ApplicationContext context = provider.getContext(filterConfig.getServletContext());
             enabled = Boolean.parseBoolean(context.getEnvironment().getProperty(JAEGER_ENABLED));
             if (enabled) {
